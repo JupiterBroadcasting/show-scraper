@@ -503,31 +503,7 @@ def parse_name(page_soup, username, guest_data):
     elif guest_data: 
         name = guest_data.get("name", username)
     return name
-
-
-def main():
-    global config
-    with open("config.yml") as f:
-        config = yaml.load(f, Loader=yaml.SafeLoader)
-        shows = config['shows']
-
-    hugo_data = read_hugo_data()
-
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Must be first. Here the JB_DATA global is populated
-        scrape_data_from_jb(shows, executor)
-
-        # save to a json file - this might be useful for files migrations
-        jb_file = os.path.join(DATA_ROOT_DIR, "jb_all_shows_links.json")
-        with open(jb_file, "w") as f:
-            f.write(json.dumps(JB_DATA, indent=2))
-
-        scrape_episodes_from_fireside(shows, hugo_data, executor)
-
-        # Must come after scrape_episodes_from_fireside where the MISSING_* globals
-        # are set
-        scrape_hosts_guests_and_sponsors(shows, executor)
-        
+     
 
 def scrape_data_from_jb(shows, executor):
     logger.info(">>> Scraping data from jupiterbroadcasting.com...")
@@ -724,6 +700,31 @@ def scrape_episodes_from_fireside(shows, hugo_data, executor):
     for future in concurrent.futures.as_completed(futures):
         future.result()
     logger.success(">>> Finished scraping from Fireside ✓")
+
+
+def main():
+    global config
+    with open("config.yml") as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+        shows = config['shows']
+
+    hugo_data = read_hugo_data()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Must be first. Here the JB_DATA global is populated
+        scrape_data_from_jb(shows, executor)
+
+        # save to a json file - this might be useful for files migrations
+        jb_file = os.path.join(DATA_ROOT_DIR, "jb_all_shows_links.json")
+        with open(jb_file, "w") as f:
+            f.write(json.dumps(JB_DATA, indent=2))
+
+        scrape_episodes_from_fireside(shows, hugo_data, executor)
+
+        # Must come after scrape_episodes_from_fireside where the MISSING_* globals
+        # are set
+        scrape_hosts_guests_and_sponsors(shows, executor)
+
 
 if __name__ == "__main__":
     logger.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
