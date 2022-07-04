@@ -9,6 +9,7 @@ import yaml
 from bs4 import BeautifulSoup
 from dateutil.parser import parse as date_parse
 from jinja2 import Template
+from loguru import logger
 
 
 # Root dir where all the scraped data should to saved to.
@@ -115,7 +116,7 @@ def create_episode(api_episode,
         output_file = f"{output_dir}/{episode_number}.md"
 
         if os.path.isfile(output_file):
-            Log.info(f"Skipping saving `{output_file}` as it already exists")
+            logger.info(f"Skipping saving `{output_file}` as it already exists")
             return
 
         publish_date = date_parse(api_episode['date_published'])
@@ -185,13 +186,12 @@ def create_episode(api_episode,
         )
 
         with open(output_file, "w") as f:
-            Log.info(f"Saving episode from {api_episode['url']}")
+            logger.info(f"Saving episode from {api_episode['url']}")
             f.write(output)
 
     except Exception as e:
-        Log.error(f"Failed to create an episode from url!",
-                  episode_url=api_episode.get('url'),
-                  exception=e)
+        logger.exception("Failed to create an episode from url!\n"
+                         f"episode_url: {api_episode.get('url')}")
 
 
 def parse_hosts(hugo_data, page_soup: BeautifulSoup, show_config, ep):
@@ -218,11 +218,10 @@ def parse_hosts(hugo_data, page_soup: BeautifulSoup, show_config, ep):
                 MISSING_HOSTS.add(host_page_url)
                 hosts.append(get_username_from_url(host_page_url))
         except Exception as e:
-            Log.error(f"Failed to parse HOST for link href!",
-                      show=show,
-                      ep=ep,
-                      href=link.get('href'),
-                      exception=e)
+            logger.exception(f"Failed to parse HOST for link href!\n"
+                             f"  show: {show}\n"
+                             f"  ep: {ep}\n"
+                             f"  href: {link.get('hrerf')}")
     return hosts
 
 
@@ -261,10 +260,10 @@ def parse_guests(hugo_data, page_soup, show_config, ep):
                 guests.append(get_username_from_url(guest_page_url))
 
         except Exception as e:
-            Log.error(f"Failed to parse GUEST for link href!",
-                      show=show, ep=ep,
-                      href=link.get('href'),
-                      exception=e)
+            logger.exception(f"Failed to parse GUEST for link href!\n"
+                             f"  show: {show}\n"
+                             f"  ep: {ep}\n"
+                             f"  href: {link.get('hrerf')}")
 
     return guests
 
@@ -273,7 +272,9 @@ def parse_sponsors(hugo_data, api_soup, page_soup, show, ep):
     # Get only the links of all the sponsors
     sponsors_ul = get_list(api_soup, "Sponsored By:")
     if not sponsors_ul:
-        Log.warn("No sponsors found for this episode.", show=show, ep=ep)
+        logger.warning("No sponsors found for this episode.\n"
+                       f"  show: {show}\n"
+                       f"  ep: {ep}")
         return []
 
     sponsors_links = [a["href"]
@@ -286,8 +287,10 @@ def parse_sponsors(hugo_data, api_soup, page_soup, show, ep):
             if s:
                 sponsors.append(s["shortname"])
             else:
-                # Log.warn("Missing SPONSOR definition",
-                #          show=show, ep=ep, sponsor_link=sl)
+                # logger.warning("Missing SPONSOR definition\n"
+                #                f"  show: {show}\n"
+                #                f"  ep: {ep}"
+                #                f"  sponsor_link: {sl}")
 
                 # Very ugly but works. The goal is to get the hostname of the sponsor
                 # link without the subdomain. It would fail on tlds like "co.uk". but I
@@ -311,8 +314,9 @@ def parse_sponsors(hugo_data, api_soup, page_soup, show, ep):
                         }
                     })
         except Exception as e:
-            Log.error("Failed to collect/parse sponsor data!",
-                      show=show, ep=ep, exception=e)
+            logger.exception("Failed to collect/parse sponsor data!\n"
+                             f"  show: {show}\n"
+                             f"  ep: {ep}")
 
     return sponsors
 
@@ -325,7 +329,7 @@ def save_json_file(filename, json_obj, dest_dir):
     with open(file_path, "w") as f:
         f.write(json.dumps(json_obj, indent=4))
 
-    Log.debug("Saved new json file", file=file_path)
+    logger.debug(f"Saved json file: {file_path}")
 
 
 def read_hugo_data():
@@ -448,8 +452,8 @@ def create_host_or_guest(url, dirname):
         hosts_dir = os.path.join(DATA_ROOT_DIR, "data", dirname)
         save_json_file(f"{username}.json", host_json, hosts_dir)
     except Exception as e:
-        Log.error("Failed to create/save a new host/guest file!",
-                  url=url, exception=e)
+        logger.exception("Failed to create/save a new host/guest file!\n"
+                         f"  url: {url}")
 
 def save_avatar_img(dirname, page_soup, username, guest_data):
     """Returns the `filename` is all is successfully downloaded, None otherwise"""
@@ -468,7 +472,8 @@ def save_avatar_img(dirname, page_soup, username, guest_data):
 
             return filename
     except Exception as e:
-        Log.error("Failed to save avatar!", username=username, exception=e)
+        logger.exception("Failed to save avatar!\n"
+                         f"  username: {username}")
 
 
 def get_avatar_url(page_soup, guest_data):
@@ -515,10 +520,9 @@ def main():
         # are set
         scrape_hosts_guests_and_sponsors(shows, executor)
         
-    Log.info(">>> 🔥🔥🔥 ALL DONE :) 🔥🔥🔥\n\n")
 
 def scrape_data_from_jb(shows, executor):
-    Log.info(">>> Scraping data from jupiterbroadcasting.com...")
+    logger.info(">>> Scraping data from jupiterbroadcasting.com...")
 
     # Collect all links for epsidoe page of each show into JB_DATA
     futures = []
@@ -529,7 +533,7 @@ def scrape_data_from_jb(shows, executor):
     for future in concurrent.futures.as_completed(futures):
         future.result()
 
-    Log.info(">>> Finished collecting all episode page urls") 
+    logger.success(">>> Finished collecting all episode page urls") 
 
     # Scrape each page for data
     futures = []
@@ -540,7 +544,7 @@ def scrape_data_from_jb(shows, executor):
     for future in concurrent.futures.as_completed(futures):
         future.result()
 
-    Log.info(">>> Finished scraping data from jupiterbroadcasting.com ✓")
+    logger.success(">>> Finished scraping data from jupiterbroadcasting.com ✓")
 
 def jb_populate_direct_links_for_episode(ep_data, show, ep):
     try:
@@ -555,8 +559,10 @@ def jb_populate_direct_links_for_episode(ep_data, show, ep):
             if p_links:
                 dl_links = p_links.find_all("a")
             else:
-                Log.warn("Failed to find Direct Download links for the episode.",
-                         show=show, ep=ep)
+                logger.warning(
+                    "Failed to find Direct Download links for the episode.\n"
+                    f"  show: {show} \n"
+                    f"  ep: {ep}")
                 return
 
         for dl_link in dl_links:
@@ -566,8 +572,10 @@ def jb_populate_direct_links_for_episode(ep_data, show, ep):
                 slug: url
             })
     except Exception as e:
-        Log.error("Failed to parse direct links for episode.",
-                  show=show, ep=ep, exception=e)
+        logger.exception(
+            "Failed to parse direct links for episode.\n"
+            f"  show: {show} \n"
+            f"  ep: {ep}")
 
 
 def jb_populate_episodes_urls(show_slug, show_base_url):
@@ -618,8 +626,12 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     "jb_url": link_href
                 }})
             except Exception as e:
-                Log.error("Failed to get episode page link and number from JB site.",
-                      show=show_slug, exception=e, page=page, ep_idx=idx, html=item.string)
+                logger.exception(
+                    "Failed to get episode page link and number from JB site.\n"
+                    f"  show: {show_slug}\n"
+                    f"  page: {page}\n"
+                    f"  ep_idx: {idx}\n"
+                    f"  html: {item.string}")
 
 
 def scrape_hosts_guests_and_sponsors(shows, executor):
@@ -677,7 +689,7 @@ def scrape_show_guests_page(shows):
             SHOW_GUESTS.update({show_data['fireside_url']: this_show_guests})
 
 def scrape_episodes_from_fireside(shows, hugo_data, executor):
-    Log.info(">>> Scraping data from fireside...")
+    logger.info(">>> Scraping data from fireside...")
 
     futures = []
     for show_slug, show_config in shows.items():
@@ -699,40 +711,10 @@ def scrape_episodes_from_fireside(shows, hugo_data, executor):
         # MISSING_* globals first before proceeding
     for future in concurrent.futures.as_completed(futures):
         future.result()
-    Log.info(">>> Finished scraping from fireside ✓")
-
-class Log:
-
-    @staticmethod
-    def log(lvl, msg, show=None, ep=None, **kwargs):
-        out = f"{lvl} | "
-        if show:
-            out += f"{show} "
-            if ep:
-                out += f"{ep} "
-            out += "| "
-        out += f"{msg} "
-        for k, v in kwargs.items():
-            out += f"\n  {k}: `{v}`"
-        print(out)
-
-    @staticmethod
-    def error(msg, show=None, ep=None, **kwargs):
-        Log.log("ERROR", msg, show=show, ep=ep, **kwargs)
-
-    @staticmethod
-    def warn(msg, show=None, ep=None, **kwargs):
-        Log.log("WARN", msg, show=show, ep=ep, **kwargs)
-
-    @staticmethod
-    def debug(msg, show=None, ep=None, **kwargs):
-        Log.log("DEBUG", msg, show=show, ep=ep, **kwargs)
-
-    @staticmethod
-    def info(msg, show=None, ep=None, **kwargs):
-        Log.log("INFO", msg, show=show, ep=ep, **kwargs)
-
+    logger.success(">>> Finished scraping from fireside ✓")
 
 if __name__ == "__main__":
-    Log.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
+    logger.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
     main()
+    logger.success("🔥🔥🔥 ALL DONE :) 🔥🔥🔥\n\n")
+    exit(0)
