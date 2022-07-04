@@ -4,7 +4,6 @@ from pydantic import BaseModel, AnyHttpUrl, HttpUrl, root_validator, validator
 
 
 VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
-VALID_JB_HOSTNAMES = {"jupiterbroadcasting.com", "www.jupiterbroadcasting.com"}
 
 
 class Episode(BaseModel):
@@ -93,12 +92,15 @@ class Episode(BaseModel):
     # Source: jupiterbroadcasting.com "Direct Download" -> "YouTube"
     youtube_link: Optional[HttpUrl]
 
-    # Link to the episode page on jupiterbroadcasting.com
+    # Path part of the URL to the episode page on jupiterbroadcasting.com
     # Example:
-    #     "https://www.jupiterbroadcasting.com/149032/git-happens-linux-unplugged-464/"
+    #     "/149032/git-happens-linux-unplugged-464/"
     # Source: jupiterbroadcasting.com
     jb_url: Optional[HttpUrl]
 
+    # Path part of the URL to the episode page on show's fireside website
+    # Example:
+    #   "/42"
     fireside_url: HttpUrl
 
     # Markdown list with links and some descriptions
@@ -130,21 +132,12 @@ class Episode(BaseModel):
         slug = values.get("show_slug")
         values["header_image"] = f"/images/shows/{slug}.png"
 
-    ########################################################
-    # VALIDATORS:
-    ########################################################
-
     @validator('youtube_link')
     def check_youtube_link(cls, v):
         if v:
             assert v.host in VALID_YOUTUBE_HOSTNAMES, f"host of the url must be one of {VALID_YOUTUBE_HOSTNAMES}, instead got {v.host}"
         return v
 
-    @validator('jb_legacy_url')
-    def check_jb_legacy_url(cls, v):
-        if v:
-            assert v.host in VALID_JB_HOSTNAMES, f"host of the url must be {VALID_JB_HOSTNAMES}, instead got {v.host}"
-        return v
 
     def get_hugo_md_file_content(self) -> str:
         """Constructs and returns the content of the Hugo markdown file.
