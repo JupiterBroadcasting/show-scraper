@@ -12,6 +12,8 @@ from loguru import logger
 from models import Episode, Person, Sponsor
 
 
+config = {}
+
 # Root dir where all the scraped data should to saved to.
 # The data save to this dir follows the directory structure of the Hugo files relative
 # to the root of the repo.
@@ -171,6 +173,7 @@ def create_episode(api_episode,
                 video_mobile_file=jb_ep_data.get("mobile_video"),
                 youtube_link=jb_ep_data.get("youtube"),
                 jb_legacy_url=jb_ep_data.get("jb_url"),
+                fireside_url=api_episode["url"],
                 episode_links=links
             )        
 
@@ -367,7 +370,17 @@ def get_username_from_url(url):
     """
     Get the last path part of the url which is the username for the hosts and guests
     """
-    return urlparse(url).path.split("/")[-1]
+    username = urlparse(url).path.split("/")[-1]
+
+    # Replace username if found in usernames_map
+    usernames_map = config.get("usernames_map")
+    if usernames_map:
+        username = usernames_map.get(
+            username, # get by the key that should be replaced
+            username) # default to the key if not found
+
+
+    return username
 
 
 def create_host_or_guest(url, p_type):
@@ -488,8 +501,10 @@ def parse_name(page_soup, username, guest_data):
 
 
 def main():
+    global config
     with open("config.yml") as f:
-        shows = yaml.load(f, Loader=yaml.SafeLoader)['shows']
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+        shows = config['shows']
 
     hugo_data = read_hugo_data()
 

@@ -35,3 +35,9 @@ shows:
     header_image: /images/shows/officehours.png
     acronym: OH
     name: Office Hours
+# Map usernames of hosts/guests as they appear in fireside to how we want to save them
+usernames_map:
+  chrislas: chris
+  wespayne: wes
+  alexktz: alex
+  brentgervais: brent
