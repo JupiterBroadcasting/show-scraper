@@ -15,3 +15,6 @@ class Person(BaseModel):
     instagram: Optional[HttpUrl]
     gplus: Optional[HttpUrl]
     youtube: Optional[HttpUrl]
+
+
+    # TODO validate social links domain names

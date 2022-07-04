@@ -1,11 +1,10 @@
 from datetime import datetime, time
-import json
-from textwrap import indent
-from typing import List, Literal, Optional, Dict
+from typing import List, Literal, Optional
 from pydantic import BaseModel, AnyHttpUrl, HttpUrl, root_validator, validator
 
 
-VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "youtu.be"}
+VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
+VALID_JB_HOSTNAMES = {"jupiterbroadcasting.com", "www.jupiterbroadcasting.com"}
 
 
 class Episode(BaseModel):
@@ -43,7 +42,7 @@ class Episode(BaseModel):
     header_image: str = "/images/shows/default.png"
 
     # Source: hardcoded show name from fireside-scraper/config.yml
-    categories: List[str]
+    categories: List[str] = []
 
     # Source: fireside website of each show
     tags: List[str]
@@ -98,7 +97,7 @@ class Episode(BaseModel):
     # Example:
     #     "https://www.jupiterbroadcasting.com/149032/git-happens-linux-unplugged-464/"
     # Source: jupiterbroadcasting.com
-    jb_leagcy_url: Optional[HttpUrl]
+    jb_legacy_url: Optional[HttpUrl]
 
     # Markdown list with links and some descriptions
     # Source: fireside website of each show
@@ -127,7 +126,7 @@ class Episode(BaseModel):
     @classmethod
     def _generate_header_image(cls, values):
         slug = values.get("show_slug")
-        values["episode_links_md"] = f"/images/shows/{slug}.png"
+        values["header_image"] = f"/images/shows/{slug}.png"
 
     ########################################################
     # VALIDATORS:
@@ -135,13 +134,28 @@ class Episode(BaseModel):
 
     @validator('youtube_link')
     def check_youtube_link(cls, v):
-        assert v.host in VALID_YOUTUBE_HOSTNAMES, f"host of the url must be one of {VALID_YOUTUBE_HOSTNAMES}"
+        if v:
+            assert v.host in VALID_YOUTUBE_HOSTNAMES, f"host of the url must be one of {VALID_YOUTUBE_HOSTNAMES}, instead got {v.host}"
         return v
 
-    @validator('jb_leagcy_url')
-    def check_jb_leagcy_url(cls, v):
-        assert v.host == "jupiterbroadcasting.com", f"host of the url must be `jupiterbroadcasting.com`"
-        return v.lower()
+    @validator('jb_legacy_url')
+    def check_jb_legacy_url(cls, v):
+        if v:
+            assert v.host in VALID_JB_HOSTNAMES, f"host of the url must be {VALID_JB_HOSTNAMES}, instead got {v.host}"
+        return v
 
+    def get_hugo_md_file_content(self) -> str:
+        """Constructs and returns the content of the Hugo markdown file.
+        """
+        
+        content = self.json(exclude={"episode_links"}, indent=2)
+        content += "\n"
 
-ep = Episode(show_name="face", show_slug="face---")
+        if self.episode_links:
+            content += "\n\n"
+            content += "### Episode Links\n\n"
+            content += self.episode_links
+        
+        content += "\n"  # Empty line
+
+        return content
