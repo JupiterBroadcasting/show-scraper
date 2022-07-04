@@ -99,6 +99,8 @@ class Episode(BaseModel):
     # Source: jupiterbroadcasting.com
     jb_legacy_url: Optional[HttpUrl]
 
+    fireside_url: HttpUrl
+
     # Markdown list with links and some descriptions
     # Source: fireside website of each show
     episode_links: Optional[str]
