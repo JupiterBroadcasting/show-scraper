@@ -151,6 +151,10 @@ def create_episode(api_episode,
 
         jb_ep_data = JB_DATA.get(show_slug, {}).get(episode_number, {})
         # logger.debug(f"{episode_number} jb_ep_data: {jb_ep_data}")
+        jb_url = jb_ep_data.get("jb_url")
+        if jb_url:
+            jb_url = urlparse(jb_url).path
+
 
         episode = Episode(
                 show_slug=show_slug,
@@ -173,8 +177,8 @@ def create_episode(api_episode,
                 video_hd_file=jb_ep_data.get("hd_video"),
                 video_mobile_file=jb_ep_data.get("mobile_video"),
                 youtube_link=jb_ep_data.get("youtube"),
-                jb_legacy_url=jb_ep_data.get("jb_url"),
-                fireside_url=api_episode["url"],
+                jb_url=jb_url,
+                fireside_url=urlparse(api_episode["url"]).path,
                 episode_links=links
             )        
 

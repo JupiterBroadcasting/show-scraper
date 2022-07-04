@@ -97,7 +97,7 @@ class Episode(BaseModel):
     # Example:
     #     "https://www.jupiterbroadcasting.com/149032/git-happens-linux-unplugged-464/"
     # Source: jupiterbroadcasting.com
-    jb_legacy_url: Optional[HttpUrl]
+    jb_url: Optional[HttpUrl]
 
     fireside_url: HttpUrl
 
