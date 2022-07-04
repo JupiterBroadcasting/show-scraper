@@ -8,8 +8,8 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 from dateutil.parser import parse as date_parse
-from jinja2 import Template
 from loguru import logger
+from models import Episode, Person, Sponsor
 
 
 # Root dir where all the scraped data should to saved to.
@@ -55,10 +55,6 @@ MISSING_GUESTS = set() # Same as MISSING_HOSTS above, but for guests
 #     "show_slug_2": { ... }
 # }
 JB_DATA = {}
-
-
-with open(os.path.join("templates", "episode.md.j2")) as f:
-    TEMPLATE = Template(f.read())
 
 
 def makedirs_safe(directory):
@@ -119,7 +115,7 @@ def create_episode(api_episode,
             logger.info(f"Skipping saving `{output_file}` as it already exists")
             return
 
-        publish_date = date_parse(api_episode['date_published'])
+        publish_date = api_episode['date_published']
 
         api_soup = BeautifulSoup(api_episode["content_html"], "html.parser")
         page_soup = BeautifulSoup(requests.get(
@@ -130,8 +126,8 @@ def create_episode(api_episode,
         sponsors = parse_sponsors(
             hugo_data, api_soup, page_soup, show_config["acronym"], episode_number)
 
-        links = html2text.html2text(
-            str(get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")))
+        links_list = get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")
+        links = html2text.html2text(str(links_list)) if links_list else None
 
         tags = []
         for link in page_soup.find_all("a", class_="tag"):
@@ -151,43 +147,36 @@ def create_episode(api_episode,
         show_attachment = api_episode["attachments"][0]
 
         jb_ep_data = JB_DATA.get(show_slug, {}).get(episode_number, {})
+        # logger.debug(f"{episode_number} jb_ep_data: {jb_ep_data}")
 
-        output = TEMPLATE.render(
-            {
-                # "title": api_episode["title"],
-                "title_plain": get_plain_title(api_episode["title"]),
-                "blurb": blurb,
-                "date_published": publish_date.date().isoformat(),
-                "is_draft": "false",
-                # TODO: In what case should the "Featured" category be added?
-                "categories": [show_config["name"]],
-                "tags": tags,
-                "hosts": hosts,
-                "guests": guests,
-                "sponsors": sponsors,
-                "header_image": show_config["header_image"],
-
-                "episode_number": episode_number,
-                "episode_number_padded": episode_number_padded,
-                "podcast_duration": seconds_2_hhmmss_str(show_attachment['duration_in_seconds']),
-                "podcast_file": show_attachment["url"],  # using https://chtbl.com for tracking
-                "podcast_file_podtrack": jb_ep_data.get("mp3_audio", ""),
-                "podcast_file_ogg": jb_ep_data.get("ogg_audio", ""),
-                "podcast_bytes": show_attachment.get("size_in_bytes", ""),
-
-                "youtube_link": jb_ep_data.get("youtube", ""),
-                "video_file": jb_ep_data.get("video", ""),
-                "video_file_hd": jb_ep_data.get("hd_video", ""),
-                "video_file_mobile": jb_ep_data.get("mobile_video", ""),
-                "jb_legacy_url": jb_ep_data.get("jb_url", ""),
-
-                "links": links
-            }
-        )
+        episode = Episode(
+                show_slug=show_slug,
+                show_name=show_config["name"],
+                episode=episode_number,
+                episode_padded=episode_number_padded,
+                title=get_plain_title(api_episode["title"]),
+                description=blurb,
+                date=publish_date,
+                tags=tags,
+                hosts=hosts,
+                guests=guests,
+                sponsors=sponsors,
+                podcast_duration=seconds_2_hhmmss_str(show_attachment['duration_in_seconds']),
+                podcast_file=show_attachment["url"],
+                podcast_bytes=show_attachment.get("size_in_bytes"),
+                podcast_alt_file=jb_ep_data.get("mp3_audio"),
+                podcast_ogg_file=jb_ep_data.get("ogg_audio"),
+                video_file=jb_ep_data.get("video"),
+                video_hd_file=jb_ep_data.get("hd_video"),
+                video_mobile_file=jb_ep_data.get("mobile_video"),
+                youtube_link=jb_ep_data.get("youtube"),
+                jb_legacy_url=jb_ep_data.get("jb_url"),
+                episode_links=links
+            )        
 
         with open(output_file, "w") as f:
-            logger.info(f"Saving episode from {api_episode['url']}")
-            f.write(output)
+            f.write(episode.get_hugo_md_file_content())
+        logger.info(f"Saved episode file {output_file}")
 
     except Exception as e:
         logger.exception("Failed to create an episode from url!\n"
@@ -306,12 +295,12 @@ def parse_sponsors(hugo_data, api_soup, page_soup, show, ep):
                     "div", class_="episode-sponsors").find("a", attrs={"href": sl})
                 if sponsor_a:
                     MISSING_SPONSORS.update({
-                        filename: {
-                            "shortname": shortname,
-                            "name": sponsor_a.find("header").text.strip(),
-                            "description": sponsor_a.find("p").text.strip(),
-                            "link": sl
-                        }
+                        filename: Sponsor(
+                            shortname=shortname,
+                            name=sponsor_a.find("header").text.strip(),
+                            description=sponsor_a.find("p").text.strip(),
+                            link=sl
+                        ).dict()
                     })
         except Exception as e:
             logger.exception("Failed to collect/parse sponsor data!\n"
@@ -329,7 +318,7 @@ def save_json_file(filename, json_obj, dest_dir):
     with open(file_path, "w") as f:
         f.write(json.dumps(json_obj, indent=4))
 
-    logger.debug(f"Saved json file: {file_path}")
+    logger.info(f"Saved json file: {file_path}")
 
 
 def read_hugo_data():
@@ -381,33 +370,34 @@ def get_username_from_url(url):
     return urlparse(url).path.split("/")[-1]
 
 
-def create_host_or_guest(url, dirname):
+def create_host_or_guest(url, p_type):
     try:
-        valid_dirnames = {"hosts", "guests"}
-        assert dirname in valid_dirnames, "dirname arg must be one of `hosts`, `guests`"
+        valid_p_types = {"host", "guest"}
+        assert p_type in valid_p_types, f"p_type param must be one of {valid_p_types}"
 
         page_soup = BeautifulSoup(requests.get(url).content, "html.parser")
         
         username = get_username_from_url(url)  
 
-        show_url = url.split("/guests")[0]
 
         # From guests list page. Need this because sometimes the single guest page
         # is missing info (e.g. all self-hosted guests)
+        show_url = url.split("/guests")[0]
         guest_data = SHOW_GUESTS.get(show_url, {}).get(username, {})  
 
         name = parse_name(page_soup, username, guest_data)
         
+        dirname = f"{p_type}s"
         filename = save_avatar_img(dirname, page_soup, username, guest_data)
 
         # Get social links
 
-        homepage = ""
-        twitter = ""
-        linkedin = ""
-        instagram = ""
-        gplus = ""
-        youtube = ""
+        homepage = None
+        twitter = None
+        linkedin = None
+        instagram = None
+        gplus = None
+        youtube = None
         nav = page_soup.find("nav", class_="links")
         if nav:
             links = nav.find_all("a")
@@ -433,24 +423,22 @@ def create_host_or_guest(url, dirname):
         if _bio:
             bio = _bio.text.strip()
 
-        host_json = {
-            "username": username,  # e.g. "alexktz"
-            "name": name,  # e.g. "Alex Kretzschmar"
-            # e.g. "Red Hatter. Drone Racer. Photographer. Dog lover."
-            "bio":  bio,
-            # e.g. "/images/guests/alex_kretzschmar.jpeg"
-            "avatar":  f"/images/{dirname}/{filename}" if filename else "",
-            "homepage": homepage,  # e.g. "https://www.linuxserver.io/"
-            "twitter": twitter,  # e.g. "https://twitter.com/ironicbadger"
-            # e.g. "https://www.linkedin.com/in/alex-kretzschmar/""
-            "linkedin": linkedin,
-            "instagram": instagram,
-            "gplus": gplus,
-            "youtube": youtube,
-        }
+        person = Person(
+            type=p_type,
+            username=username,
+            name=name,
+            bio=bio,
+            avatar=f"/images/{dirname}/{filename}" if filename else None,
+            homepage=homepage,
+            twitter=twitter,
+            linkedin=linkedin,
+            instagram=instagram,
+            gplus=gplus,
+            youtube=youtube,
+        )
 
         hosts_dir = os.path.join(DATA_ROOT_DIR, "data", dirname)
-        save_json_file(f"{username}.json", host_json, hosts_dir)
+        save_json_file(f"{username}.json", person.dict(), hosts_dir)
     except Exception as e:
         logger.exception("Failed to create/save a new host/guest file!\n"
                          f"  url: {url}")
@@ -649,11 +637,11 @@ def scrape_hosts_guests_and_sponsors(shows, executor):
 
     # MISSING_HOSTS:
     for url in MISSING_HOSTS:
-        futures.append(executor.submit(create_host_or_guest, url, "hosts"))
+        futures.append(executor.submit(create_host_or_guest, url, "host"))
 
     # MISSING_GUESTS:
     for url in MISSING_GUESTS:
-        futures.append(executor.submit(create_host_or_guest, url, "guests"))
+        futures.append(executor.submit(create_host_or_guest, url, "guest"))
 
     # Drain to get exceptions. Still have to mash CTRL-C, though.
     for future in concurrent.futures.as_completed(futures):
