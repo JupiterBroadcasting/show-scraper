@@ -3,7 +3,5 @@ scrape: clean mkdir-data
 
 clean:
 	-rm -r ./data
-
-mkdir-data:
-	mkdir ./data
+	-mkdir ./data
 
