@@ -69,7 +69,7 @@ class Episode(BaseModel):
 
     # Number of bytes of the `podcast_file` above (from fireside)
     # Source: fireside
-    podcast_bytes: int  # size of podcast_file in bytes
+    podcast_bytes: int
 
     # Has different tracking url than `podcast_file`
     # Example:
@@ -96,12 +96,12 @@ class Episode(BaseModel):
     # Example:
     #     "/149032/git-happens-linux-unplugged-464/"
     # Source: jupiterbroadcasting.com
-    jb_url: Optional[HttpUrl]
+    jb_url: Optional[str]
 
     # Path part of the URL to the episode page on show's fireside website
     # Example:
     #   "/42"
-    fireside_url: HttpUrl
+    fireside_url: str
 
     # Markdown list with links and some descriptions
     # Source: fireside website of each show
