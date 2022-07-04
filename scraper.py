@@ -513,14 +513,9 @@ def scrape_data_from_jb(shows, executor):
     logger.info(">>> Scraping data from jupiterbroadcasting.com...")
 
     # Collect all links for epsidoe page of each show into JB_DATA
-    futures = []
     for show_slug, show_config in shows.items():
         show_base_url = show_config["jb_url"]
-        futures.append(executor.submit(
-            jb_populate_episodes_urls, show_slug, show_base_url))
-    for future in concurrent.futures.as_completed(futures):
-        future.result()
-
+        jb_populate_episodes_urls(show_slug, show_base_url)
     logger.success(">>> Finished collecting all episode page urls") 
 
     # Scrape each page for data
@@ -528,16 +523,21 @@ def scrape_data_from_jb(shows, executor):
     for show, show_episodes in JB_DATA.items():
         for ep, ep_data in show_episodes.items():
             futures.append(executor.submit(
-                jb_populate_direct_links_for_episode, ep_data, show, ep))
+                jb_get_ep_page_content, ep_data["jb_url"], ep_data, show, ep))
+
     for future in concurrent.futures.as_completed(futures):
-        future.result()
+        page_content, ep_data, show, ep = future.result()
+        jb_populate_direct_links_for_episode(page_content, ep_data, show, ep)
 
     logger.success(">>> Finished scraping data from jupiterbroadcasting.com ✓")
 
-def jb_populate_direct_links_for_episode(ep_data, show, ep):
+def jb_get_ep_page_content(page_url, ep_data, show, ep):
+    resp = requests.get(page_url)
+    return resp.content, ep_data, show, ep
+
+def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
     try:
-        ep_soup = BeautifulSoup(requests.get(
-            ep_data["jb_url"]).content, "html.parser")
+        ep_soup = BeautifulSoup(ep_page_content, "html.parser")
         dd_div = ep_soup.find("div", attrs={"id": "direct-downloads"})
         if dd_div:
             dl_links = dd_div.find_all("a")
@@ -579,12 +579,16 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
     else:
         last_page = 1  # Just one page
 
-    for page in range(1, last_page+1):
-        if page > 1:
-            page_url = f"{show_base_url}/page/{page}/"
-            page_soup = BeautifulSoup(requests.get(
-                page_url).content, "html.parser")
+    futures = []
 
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        for page in range(1, last_page+1):
+            page_url = f"{show_base_url}/page/{page}/"
+            futures.append(executor.submit(requests.get, page_url))
+
+    for future in concurrent.futures.as_completed(futures):
+        resp = future.result()
+        page_soup = BeautifulSoup(resp.content, "html.parser")
         videoitems = page_soup.find_all("div", class_="videoitem")
         for idx, item in enumerate(videoitems):
             try:
