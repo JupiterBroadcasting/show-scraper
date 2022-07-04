@@ -33,8 +33,8 @@ HUGO_DATA_DIR = os.getenv("HUGO_DIR", "./hugo-data")
 SHOW_GUESTS = {}
 
 
-# The purpose of the MISSING_* globals is to holds references (sometime with data) to 
-# entities that don't exist yet but are referenced in a show episdoe which is being 
+# The purpose of the MISSING_* globals is to hold references (sometimes with data) to 
+# entities that don't exist yet but are referenced in a show episode which is being 
 # scraped and saved. These are used to scrape and/or create the data json
 # files after the episode files been created/saved.
 MISSING_SPONSORS = {}  # JSON filename as key (e.g. "linode.com-lup.json")
@@ -44,7 +44,7 @@ MISSING_GUESTS = set() # Same as MISSING_HOSTS above, but for guests
 
 # Global that holds scraped show episodes data from jupiterbroadcasting.com.
 # The data is links to different types episode medium files (mp3, youtube, ogg, video,
-#  etc.) - whatever is availble on the epidsode page under the "Direct Download:" header 
+#  etc.) - whatever is available on the episode page under the "Direct Download:" header 
 #
 # The structure of this is:
 # {
@@ -87,7 +87,8 @@ def seconds_2_hhmmss_str(seconds: str | int) -> str:
 
 
 def get_plain_title(title: str) -> str:
-    """Get just the show title, without any numbering etc
+    """
+    Get just the show title, without any numbering etc
     """
     # Remove number before colon
     title = title.split(":", 1)[-1]
@@ -134,7 +135,7 @@ def create_episode(api_episode,
         tags = []
         for link in page_soup.find_all("a", class_="tag"):
             _tag = link.get_text().strip()
-            # escape inner quotes (occures in coderradio 434)
+            # escape inner quotes (occurs in coderradio 434)
             _tag = _tag.replace("\"", "\\\"")
             tags.append(_tag)
 
@@ -236,8 +237,8 @@ def parse_guests(hugo_data, page_soup, show_config, ep):
             guest_name = link.get("title").strip()
 
             guest = hugo_data["guests"]["_data"].get(guest_name)
-            # Sometimes the guests are already defined in the hosts, for example if they
-            # are hosts in a different show. So try to find the within hosts.
+            # Sometimes the guests are already defined in the 'hosts', for example if they
+            # are hosts in a different show. So try to find them within 'hosts'.
             host_guest = hugo_data["hosts"]["_data"].get(guest_name)
 
             if guest:
@@ -340,7 +341,7 @@ def read_hugo_data():
         }
     }
 
-    # FIXME: this is a temp fix to bascially say that there's no exisitng data and everything should be scraped
+    # FIXME: this is a temp fix to basically say that there's no existing data and everything should be scraped
     return hugo_data
 
     for key, item in hugo_data.items():
@@ -457,7 +458,7 @@ def create_host_or_guest(url, p_type):
                          f"  url: {url}")
 
 def save_avatar_img(dirname, page_soup, username, guest_data):
-    """Returns the `filename` is all is successfully downloaded, None otherwise"""
+    """Returns the `filename` if all is successfully downloaded, None otherwise"""
     try:
         avatar_url = get_avatar_url(page_soup, guest_data)
             
@@ -527,7 +528,7 @@ def main():
 def scrape_data_from_jb(shows, executor):
     logger.info(">>> Scraping data from jupiterbroadcasting.com...")
 
-    # Collect all links for epsidoe page of each show into JB_DATA
+    # Collect all links for episode page of each show into JB_DATA
     for show_slug, show_config in shows.items():
         show_base_url = show_config["jb_url"]
         jb_populate_episodes_urls(show_slug, show_base_url)
@@ -616,12 +617,12 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     ep_num = 1
                 if link.get("title") == "Goodbye from Linux Action News":
                     # LAN edge case. This episode is between ep152 and 153, hence it
-                    # shall be offically titled as episode 152.5 for now forth
+                    # shall be officially titled as episode 152.5 for now forth
                     # (hopefully having floaty number won't brake things 😛)
 
-                    # TODO create the episode file for this, cuz it's not in fireside
+                    # TODO create the episode file for this, cuz it's not in Fireside
                     ep_num = 152.5
-                # Some coder exceptins
+                # Some Coder exceptions
                 if link.get("title") == "Say My Functional Name | Coder Radio":
                     ep_num = 343
                 if link.get("title") == "New Show! | Coder Radio":
@@ -696,7 +697,7 @@ def scrape_show_guests_page(shows):
             SHOW_GUESTS.update({show_data['fireside_url']: this_show_guests})
 
 def scrape_episodes_from_fireside(shows, hugo_data, executor):
-    logger.info(">>> Scraping data from fireside...")
+    logger.info(">>> Scraping data from Fireside...")
 
     futures = []
     for show_slug, show_config in shows.items():
@@ -718,7 +719,7 @@ def scrape_episodes_from_fireside(shows, hugo_data, executor):
         # MISSING_* globals first before proceeding
     for future in concurrent.futures.as_completed(futures):
         future.result()
-    logger.success(">>> Finished scraping from fireside ✓")
+    logger.success(">>> Finished scraping from Fireside ✓")
 
 if __name__ == "__main__":
     logger.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
