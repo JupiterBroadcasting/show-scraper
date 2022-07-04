@@ -1,0 +1,12 @@
+version: '3'
+services:
+  scraper:
+    image: jb-scraper
+    container_name: jb-scraper
+    environment:
+      - DATA_DIR=/data
+    build:
+      context: .
+    volumes:
+      - ./data:/data
+

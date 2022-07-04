@@ -1,0 +1,19 @@
+.DS_Store
+
+
+# IDE config files
+.vscode
+.idea
+
+# Environment
+venv/
+venv.bak/
+
+# Scraped data folder
+data/
+
+
+# Other
+*.log
+tmp/
+
