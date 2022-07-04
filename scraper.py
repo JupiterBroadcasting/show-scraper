@@ -8,7 +8,6 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 from dateutil.parser import parse as date_parse
-from jinja2 import Template
 from loguru import logger
 from models import Episode, Person, Sponsor
 
@@ -56,10 +55,6 @@ MISSING_GUESTS = set() # Same as MISSING_HOSTS above, but for guests
 #     "show_slug_2": { ... }
 # }
 JB_DATA = {}
-
-
-with open(os.path.join("templates", "episode.md.j2")) as f:
-    TEMPLATE = Template(f.read())
 
 
 def makedirs_safe(directory):
