@@ -1,6 +1,6 @@
 from datetime import datetime, time
-from typing import List, Literal, Optional
-from pydantic import BaseModel, AnyHttpUrl, HttpUrl, root_validator, validator
+from typing import Dict, List, Literal, Optional
+from pydantic import BaseModel, AnyHttpUrl, HttpUrl, Json, root_validator, validator
 
 
 VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
@@ -70,6 +70,11 @@ class Episode(BaseModel):
     # Number of bytes of the `podcast_file` above (from fireside)
     # Source: fireside
     podcast_bytes: int
+
+    # Chapters JSON in a format defined by podcastingindex.org:
+    #   https://github.com/Podcastindex-org/podcast-namespace/blob/main/chapters/jsonChapters.md
+    # Source: RSS feed from fireside
+    podcast_chapters: Optional[Dict]
 
     # Has different tracking url than `podcast_file`
     # Example:

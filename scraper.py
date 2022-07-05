@@ -2,6 +2,7 @@ import concurrent.futures
 import json
 import os
 from typing import Dict, List
+from urllib.error import HTTPError
 from urllib.parse import urlparse
 
 import html2text
@@ -45,6 +46,8 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 #     "show_slug_2": { ... }
 # }
 JB_DATA = {}
+
+CHAPTERS_URL_TPL = "https://feeds.fireside.fm/{show}/json/episodes/{ep_id}/chapters"
 
 
 def makedirs_safe(directory):
@@ -103,6 +106,8 @@ def create_episode(api_episode,
             logger.warning(f"Skipping saving `{output_file}` as it already exists")
             return
 
+        podcast_chapters = get_podcast_chapters(api_episode, show_config)
+
         publish_date = api_episode['date_published']
 
         api_soup = BeautifulSoup(api_episode["content_html"], "html.parser")
@@ -153,6 +158,7 @@ def create_episode(api_episode,
                 podcast_duration=seconds_2_hhmmss_str(show_attachment['duration_in_seconds']),
                 podcast_file=show_attachment["url"],
                 podcast_bytes=show_attachment.get("size_in_bytes"),
+                podcast_chapters=podcast_chapters,
                 podcast_alt_file=jb_ep_data.get("mp3_audio"),
                 podcast_ogg_file=jb_ep_data.get("ogg_audio"),
                 video_file=jb_ep_data.get("video"),
@@ -169,6 +175,20 @@ def create_episode(api_episode,
     except Exception as e:
         logger.exception("Failed to create an episode from url!\n"
                          f"episode_url: {api_episode.get('url')}")
+
+def get_podcast_chapters(api_episode, show_config):
+    try:
+        chapters_url = CHAPTERS_URL_TPL.format(
+                show=show_config["fireside_slug"],
+                ep_id=api_episode["id"])
+
+        resp = requests.get(chapters_url)
+        resp.raise_for_status()
+
+        return resp.json()
+    except requests.HTTPError:
+        # No chapters
+        pass
 
 def save_file(file_path, content, mode="w", overwrite=False):
     if not overwrite and os.path.exists(file_path):
