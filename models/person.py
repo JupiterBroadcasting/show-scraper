@@ -9,6 +9,7 @@ class Person(BaseModel):
     name: str
     bio: Optional[str]
     avatar: Optional[str]
+    avatar_small: Optional[str]
     homepage: Optional[HttpUrl]
     twitter: Optional[HttpUrl]
     linkedin: Optional[HttpUrl]

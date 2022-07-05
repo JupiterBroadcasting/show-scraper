@@ -1,12 +1,13 @@
 import concurrent.futures
 import json
 import os
+from typing import Dict, List
 from urllib.parse import urlparse
 
 import html2text
 import requests
 import yaml
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, ResultSet
 from dateutil.parser import parse as date_parse
 from loguru import logger
 from models import Episode, Person, Sponsor
@@ -22,19 +23,9 @@ config = {}
 DATA_ROOT_DIR = os.getenv("DATA_DIR", "./data")
 
 
-# Hold global data scraped from the `/guests` page (page with a list of all the guests 
-# that appeared on the show e.g. https://coder.show/guests).
-# The keys in this dict are the base url of each show (e.g. "https://coder.show"), and
-# the keys of the "show" dict are usernames of the guests (e.g. "alexktz")
-SHOW_GUESTS = {}
-
-
-# The purpose of these following globals is to hold references (sometimes with data) to 
-# entities that are referenced in a show episode. These are used to scrape and/or create
-# the data json files after the episode files been created.
-SHOW_SPONSOR_DATA = {}  # JSON filename as key (e.g. "linode.com-lup.json")
-SHOW_HOSTS_URLS = set()  # Set of hosts' page urls (e.g. https://coder.show/host/chrislas)
-SHOW_GUESTS_URLS = set() # Same as above, but for guests
+# The sponsors' data is collected into this global when episode files are scraped.
+# This data is saved to files files after the episode files have been created.
+SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.json")
 
 
 # Global that holds scraped show episodes data from jupiterbroadcasting.com.
@@ -100,8 +91,6 @@ def create_episode(api_episode,
                    show_slug: str,
                    output_dir: str):
     try:
-        makedirs_safe(output_dir)
-
         # RANT: What kind of API doesn't give the episode number?!
         episode_number = int(api_episode["url"].split("/")[-1])
         episode_number_padded = f"{episode_number:03}"
@@ -109,7 +98,7 @@ def create_episode(api_episode,
         output_file = f"{output_dir}/{episode_number}.md"
 
         if os.path.isfile(output_file):
-            logger.info(f"Skipping saving `{output_file}` as it already exists")
+            logger.warning(f"Skipping saving `{output_file}` as it already exists")
             return
 
         publish_date = api_episode['date_published']
@@ -179,11 +168,12 @@ def create_episode(api_episode,
         logger.exception("Failed to create an episode from url!\n"
                          f"episode_url: {api_episode.get('url')}")
 
-def save_file(file_path, content, mode="w"):
-    if os.path.exists(file_path):
-        logger.warning(f"File `{file_path}` already exists. Will not overwrite!")
+def save_file(file_path, content, mode="w", overwrite=False):
+    if not overwrite and os.path.exists(file_path):
+        logger.warning(f"Skipping saving `{file_path}` as it already exists")
         return False
     
+    makedirs_safe(os.path.dirname(file_path))
     with open(file_path, mode) as f:
         f.write(content)
     logger.info(f"Saved file: {file_path}")
@@ -202,7 +192,6 @@ def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config, ep):
     for link in hosts_links:
         try:
             host_page_url = base_url + link.get("href")
-            SHOW_HOSTS_URLS.add(host_page_url)
             episode_hosts.append(get_username_from_url(host_page_url))
         except Exception as e:
             logger.exception(f"Failed to parse HOST for link href!\n"
@@ -229,7 +218,6 @@ def parse_guests_in_ep(page_soup, show_config, ep):
     for link in guests_links:
         try:
             guest_page_url = base_url + link.get("href")
-            SHOW_GUESTS_URLS.add(guest_page_url)
             episode_guests.append(get_username_from_url(guest_page_url))
         except Exception as e:
             logger.exception(f"Failed to parse GUEST for link href!\n"
@@ -267,14 +255,14 @@ def parse_sponsors(api_soup, page_soup, show, ep):
             # Find the <a> element on the page with the link
             sponsor_a = page_soup.find(
                 "div", class_="episode-sponsors").find("a", attrs={"href": sl})
-            if sponsor_a and not SHOW_SPONSOR_DATA.get(filename):
-                SHOW_SPONSOR_DATA.update({
+            if sponsor_a and not SPONSORS.get(filename):
+                SPONSORS.update({
                     filename: Sponsor(
                         shortname=shortname,
                         name=sponsor_a.find("header").text.strip(),
                         description=sponsor_a.find("p").text.strip(),
                         link=sl
-                    ).dict()
+                    )
                 })
         except Exception as e:
             logger.exception("Failed to collect/parse sponsor data!\n"
@@ -284,16 +272,15 @@ def parse_sponsors(api_soup, page_soup, show, ep):
     return sponsors
 
 
-def save_json_file(filename, json_obj, dest_dir):
-    makedirs_safe(dest_dir)
-
+def save_json_file(filename, json_obj, dest_dir, overwrite=False):
     file_path = os.path.join(dest_dir, filename)
-    save_file(file_path, json.dumps(json_obj, indent=4))
+    save_file(file_path, json.dumps(json_obj, indent=4), overwrite=overwrite)
 
 
 def get_username_from_url(url):
     """
-    Get the last path part of the url which is the username for the hosts and guests
+    Get the last path part of the url which is the username for the hosts and guests.
+    Replace it using the `username_map` from config.
     """
     username = urlparse(url).path.split("/")[-1]
 
@@ -308,111 +295,41 @@ def get_username_from_url(url):
     return username
 
 
-def create_host_or_guest(url, p_type):
+def save_avatar_img(img_url: str, username: str, is_small=False) -> str:
+    """Save the avatar image only if it doesn't exist.
+
+    Return the file path relative to the `static` folder.
+    For example: "images/people/chris.jpg"
+    """
     try:
-        valid_p_types = {"host", "guest"}
-        assert p_type in valid_p_types, f"p_type param must be one of {valid_p_types}"
+        relative_filepath = get_avatar_relative_path(username, is_small)
+        full_filepath = os.path.join(DATA_ROOT_DIR, "static", relative_filepath)
 
-        page_soup = BeautifulSoup(requests.get(url).content, "html.parser")
+        # Check if file exist BEFORE the request. This is more efficient as it saves 
+        # time and bandwidth
+        if os.path.exists(full_filepath):
+            logger.warning(f"Skipping saving `{full_filepath}` as it already exists")
+            return relative_filepath
         
-        username = get_username_from_url(url)  
+        resp = requests.get(img_url)
+        resp.raise_for_status()
 
-
-        # From guests list page. Need this because sometimes the single guest page
-        # is missing info (e.g. all self-hosted guests)
-        show_url = url.split("/guests")[0]
-        guest_data = SHOW_GUESTS.get(show_url, {}).get(username, {})  
-
-        name = parse_name(page_soup, username, guest_data)
-        
-        dirname = f"{p_type}s"
-        filename = save_avatar_img(dirname, page_soup, username, guest_data)
-
-        # Get social links
-
-        homepage = None
-        twitter = None
-        linkedin = None
-        instagram = None
-        gplus = None
-        youtube = None
-        nav = page_soup.find("nav", class_="links")
-        if nav:
-            links = nav.find_all("a")
-                
-            # NOTE: This will work only if none of the links are shortened urls
-            for link in links:
-                href = link.get("href").lower()
-                if "Website" in link.text:
-                    homepage = href
-                elif "twitter" in href:
-                    twitter = href
-                elif "linkedin" in href:
-                    linkedin = href
-                elif "instagram" in href:
-                    instagram = href
-                elif "google" in href:
-                    gplus = href
-                elif "youtube" in href:
-                    youtube = href
-        
-        bio = ""
-        _bio = page_soup.find("section")
-        if _bio:
-            bio = _bio.text.strip()
-
-        person = Person(
-            type=p_type,
-            username=username,
-            name=name,
-            bio=bio,
-            avatar=f"/images/{dirname}/{filename}" if filename else None,
-            homepage=homepage,
-            twitter=twitter,
-            linkedin=linkedin,
-            instagram=instagram,
-            gplus=gplus,
-            youtube=youtube
-        )
-
-        hosts_dir = os.path.join(DATA_ROOT_DIR, "data", dirname)
-        save_json_file(f"{username}.json", person.dict(), hosts_dir)
-    except Exception as e:
-        logger.exception("Failed to create/save a new host/guest file!\n"
-                         f"  url: {url}")
-
-def save_avatar_img(dirname, page_soup, username, guest_data):
-    """Returns the `filename` if all is successfully downloaded, None otherwise"""
-    try:
-        avatar_url = get_avatar_url(page_soup, guest_data)
-            
-        if avatar_url:
-            avatars_dir = os.path.join(DATA_ROOT_DIR, "static", "images", dirname)
-            makedirs_safe(avatars_dir)
-
-            filename = f"{username}.jpg"
-            avatar_file = os.path.join(avatars_dir, filename)
-
-            resp = requests.get(avatar_url)
-            resp.raise_for_status()
-
-            save_file(avatar_file, resp.content, mode="wb")
-
-            return filename
-    except Exception as e:
+        save_file(full_filepath, resp.content, mode="wb")
+        return relative_filepath
+    except Exception:
         logger.exception("Failed to save avatar!\n"
-                         f"  username: {username}")
+                         f"  img_url: {img_url}"
+                         f"  username: {username}") 
 
 
-def get_avatar_url(page_soup, guest_data):
-    avatar_url = None
-    if guest_data:
-        avatar_url = guest_data.get("avatar")
-    else:
-        avatar_div = page_soup.find("div", class_="hero-avatar")
-        if avatar_div:
-            avatar_url = avatar_div.find("img").get("src")
-    return avatar_url
+def get_avatar_relative_path(username, is_small=False):
+    # Assume all images are JPG.
+    # Might need to use `python-magic` lib to get the actual mime-type and append 
+    # appropriate file extension.
+    filename_suffix = "_small.jpg" if is_small else ".jpg"
+    filename = username + filename_suffix
+    relative_filepath = os.path.join("images", "people", filename)
+    return relative_filepath
 
 
 def parse_name(page_soup, username, guest_data):
@@ -434,8 +351,9 @@ def scrape_data_from_jb(shows, executor):
     for show_slug, show_config in shows.items():
         show_base_url = show_config["jb_url"]
         jb_populate_episodes_urls(show_slug, show_base_url)
-    logger.success(">>> Finished collecting all episode page urls") 
+    logger.success(">>> Finished collecting urls of episode pages") 
 
+    logger.info(">>> Scraping data from each episode page...")
     # Scrape each page for data
     futures = []
     for show, show_episodes in JB_DATA.items():
@@ -447,7 +365,9 @@ def scrape_data_from_jb(shows, executor):
         page_content, ep_data, show, ep = future.result()
         jb_populate_direct_links_for_episode(page_content, ep_data, show, ep)
 
-    logger.success(">>> Finished scraping data from jupiterbroadcasting.com ✓")
+    # save to a json file - this might be useful for files migrations
+    save_json_file("jb_all_shows_links.json", JB_DATA, DATA_ROOT_DIR)
+    logger.success(">>> Finished scraping data from jupiterbroadcasting.com")
 
 def jb_get_ep_page_content(page_url, ep_data, show, ep):
     resp = requests.get(page_url)
@@ -544,70 +464,184 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     f"  html: {item.string}")
 
 
-def scrape_hosts_guests_and_sponsors(shows, executor):
-    output_dir = os.path.join(DATA_ROOT_DIR, "data", "sponsors")
-    makedirs_safe(output_dir)
-    
-    scrape_show_guests_page(shows)  # into the SHOW_GUESTS global variable
-
+def scrape_hosts_and_guests(shows, executor):
+    logger.info(">>> Scraping hosts and guests from Fireside...")
+    people_dir = os.path.join(DATA_ROOT_DIR, "data", "people")
     futures = []
+
+    guests = scrape_show_guests(shows, executor, futures)
+    hosts = scrape_show_hosts(shows, executor, futures)
+    people = guests | hosts  # combine the two dicts (hosts data overrides guests)
     
-    # Sponsors:
-    for filename, sponsor in SHOW_SPONSOR_DATA.items():
-        futures.append(executor.submit(
-            save_json_file, filename, sponsor, output_dir))
-
-    # Hosts:
-    for url in SHOW_HOSTS_URLS:
-        futures.append(executor.submit(create_host_or_guest, url, "host"))
-    # Make sure all host files are saved
-    for future in concurrent.futures.as_completed(futures):
-        future.result()
-
-    # Guests:
-    for url in SHOW_GUESTS_URLS:
-        futures.append(executor.submit(create_host_or_guest, url, "guest"))
+    # Save files asyncronously
+    for username, person in people.items():
+        futures.append(executor.submit(save_json_file, f"{username}.json", person.dict(), people_dir))
 
     # Drain all threads
     for future in concurrent.futures.as_completed(futures):
         future.result()
+    logger.success(">>> Finished scraping hosts and guests")
 
 
-def scrape_show_guests_page(shows):
+def scrape_show_hosts(shows: Dict, executor, futures: List) -> Dict[str, Person]:
+    show_hosts = {}
+    for show_data in shows.values():
+        show_fireside_url = show_data['fireside_url']
+        all_hosts_url = f"{show_fireside_url}/hosts"
+        hosts_soup = BeautifulSoup(requests.get(all_hosts_url).content, "html.parser")
+        
+        for host_soup in hosts_soup.find_all("div", class_="host"):
+            host_info_soup = host_soup.find("div", class_="host-info")
+            
+            host_link = host_info_soup.find("h3").find("a")
+            name = host_link.text.strip()
+            host_url = show_fireside_url + host_link.get("href")
+            username = get_username_from_url(host_url)
+
+            bio = host_info_soup.find("p").text
+            
+            links = host_info_soup.find("ul", class_="host-links").find_all("a")
+            links_data = parse_social_links(links)
+
+            avatar_small_url = host_soup.find("div", class_="host-avatar").find("img").get("src")
+            avatar_url = avatar_small_url.replace("_small.jpg", ".jpg")
+
+            # Download and save files asynchronously - hope for the best
+            futures.append(executor.submit(save_avatar_img,
+                           avatar_small_url, username, is_small=True))
+            futures.append(executor.submit(save_avatar_img, avatar_url, username))
+
+            avatar_small = get_avatar_relative_path(username, is_small=True)
+            avatar = get_avatar_relative_path(username)
+            
+            show_hosts[username] = Person(
+                type="host",
+                username=username,
+                name=name,
+                avatar=avatar,
+                avatar_small=avatar_small,
+                bio=bio,
+                **links_data
+            )
+
+    return show_hosts
+
+def scrape_show_guests(shows: Dict, executor, futures) -> Dict[str, Person]:
+    """Return dict of Person by username
+    """
+
+    show_guests = {}  # username as key
+
     # no need to do thread since there's only a handful number of shows
-    for show_slug, show_data in shows.items():
-        all_guests_url = f"{show_data['fireside_url']}/guests"
+    for show_data in shows.values():
+        show_fireside_url = show_data['fireside_url']
+        all_guests_url = f"{show_fireside_url}/guests"
         guests_soup = BeautifulSoup(requests.get(all_guests_url).content, "html.parser")
         links = guests_soup.find("ul", class_="show-guests").find_all("a")
 
-        for l in links:
-            url = l.get("href")
-            username = url.rstrip("/").split("/")[-1]
-            name = l.find("h5").text.strip()
-            avatar_sm = l.find("img").get("src").split("?")[0]
-            avatar = avatar_sm.replace("_small.jpg", ".jpg")
+        all_urls = [show_fireside_url + a.get("href") for a in links]
+        guest_pages = get_pages_content_threaded(all_urls, executor)
 
-            this_show_guests = SHOW_GUESTS.get(show_data['fireside_url'], {})
-            this_show_guests.update({
-                username: {
-                    "url": url,
-                    "username": username,
-                    "name": name,
-                    "avatar_sm": avatar_sm,
-                    "avatar": avatar
-                }
-            })
-            SHOW_GUESTS.update({show_data['fireside_url']: this_show_guests})
+        for l in links:
+            url = show_fireside_url + l.get("href")
+            username = get_username_from_url(url)
+            name = l.find("h5").text.strip()
+            avatar_small_url = l.find("img").get("src").split("?")[0]
+            avatar_url = avatar_small_url.replace("_small.jpg", ".jpg")
+
+            # Download and save files asynchronously - hope for the best
+            futures.append(executor.submit(save_avatar_img,
+                           avatar_small_url, username, is_small=True))
+            futures.append(executor.submit(save_avatar_img, avatar_url, username))
+
+            avatar_small = get_avatar_relative_path(username, is_small=True)
+            avatar = get_avatar_relative_path(username)
+
+            html_page = guest_pages.get(url)
+            page_data = parse_person_page(html_page)
+            
+            show_guests[username] = Person(
+                type="guest",
+                username=username,
+                name=name,
+                avatar=avatar,
+                avatar_small=avatar_small,
+                **page_data
+            )
+    return show_guests
+
+
+def parse_person_page(html_page):
+    if not html_page:
+        return {}
+
+    page_soup = BeautifulSoup(html_page, "html.parser")
+    page_data = {}
+
+            # Parse bio
+    bio = page_soup.find("section")
+    if bio:
+        page_data["bio"] = bio.text.strip()
+
+            # Parse social links
+    nav = page_soup.find("nav", class_="links")
+    if nav:
+        links = nav.find_all("a")
+        page_data = {**page_data, **parse_social_links(links)}
+        
+    return page_data
+
+
+def parse_social_links(links: ResultSet):
+    result = {}
+    for link in links:
+        href = link.get("href").lower()
+        label = link.text.lower()
+        if "website" in label:
+            result["homepage"] = href
+        elif "twitter" in label:
+            result["twitter"] = href
+        elif "linkedin" in label:
+            result["linkedin"] = href
+        elif "instagram" in label:
+            result["instagram"] = href
+        elif "google" in label:
+            result["gplus"] = href
+        elif "youtube" in label:
+            result["youtube"] = href
+
+    return result
+
+
+def get_pages_content_threaded(urls: List[str], executor) -> Dict[str, str]:
+    result = {}  # by request url as key
+
+    futures = []
+    for url in urls:
+        futures.append(executor.submit(requests.get, url))
+    
+    for f in concurrent.futures.as_completed(futures):
+        resp: requests.Response = f.result()
+        if not resp.ok:
+            logger.error("GET Request failed!\n"
+            f" url: {resp.request.url}\n"
+            f" status code: {resp.status_code}\n"
+            f" msg: {resp.reason}")
+            continue
+
+        result[resp.request.url] = resp.content
+    
+    return result
+
 
 def scrape_episodes_from_fireside(shows, executor):
-    logger.info(">>> Scraping data from Fireside...")
+    logger.info(">>> Scraping episodes from Fireside...")
 
     futures = []
     for show_slug, show_config in shows.items():
         # Use same structure as in the root project for easy copy over
         output_dir = os.path.join(
             DATA_ROOT_DIR, "content", "show", show_slug)
-        makedirs_safe(output_dir)
 
         api_data = requests.get(
             show_config['fireside_url'] + "/json").json()
@@ -618,11 +652,25 @@ def scrape_episodes_from_fireside(shows, executor):
                 show_slug, output_dir
             ))
 
-        # Drain to get exceptions. This is important in order to collect all the
-        # MISSING_* globals first before proceeding
+    # Drain to get exceptions. This is important in order to collect all the
+    # MISSING_* globals first before proceeding
     for future in concurrent.futures.as_completed(futures):
         future.result()
-    logger.success(">>> Finished scraping from Fireside ✓")
+    logger.success(">>> Finished scraping from episodes ✓")
+
+
+def save_sponsors(executor):
+    logger.info(">>> Saving the sponsors found in episodes from Fireside...")
+    sponsors_dir = os.path.join(DATA_ROOT_DIR, "data", "sponsors")
+    futures = []
+    for filename, sponsor in SPONSORS.items():
+        futures.append(executor.submit(
+        save_json_file, filename, sponsor.dict(), sponsors_dir))
+
+    # Drain all threads
+    for future in concurrent.futures.as_completed(futures):
+        future.result()
+    logger.success(">>> Finished saving sponsors")
 
 
 def main():
@@ -635,17 +683,11 @@ def main():
         # Must be first. Here the JB_DATA global is populated
         scrape_data_from_jb(shows, executor)
 
-        # save to a json file - this might be useful for files migrations
-        jb_file = os.path.join(DATA_ROOT_DIR, "jb_all_shows_links.json")
-
-        with open(jb_file, "w") as f:
-            f.write(json.dumps(JB_DATA, indent=2))
-
         scrape_episodes_from_fireside(shows, executor)
 
-        # Must come after scrape_episodes_from_fireside where the the globals: 
-        # `SHOW_SPONSOR_DATA`, `SHOW_HOSTS_URLS`, and `SHOW_GUESTS_URLS` are populated
-        scrape_hosts_guests_and_sponsors(shows, executor)
+        save_sponsors(executor)
+
+        scrape_hosts_and_guests(shows, executor)
 
 
 if __name__ == "__main__":
