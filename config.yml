@@ -1,11 +1,11 @@
 shows:
-  selfhosted:
+  self-hosted:
     fireside_url: https://selfhosted.show
     jb_url: https://www.jupiterbroadcasting.com/show/self-hosted
     header_image: /images/shows/selfhosted.png
     acronym: SSH
     name: Self-Hosted
-  coderradio:
+  coder-radio:
     fireside_url: https://coder.show
     jb_url: https://www.jupiterbroadcasting.com/show/coderradio
     header_image: /images/shows/coderradio.png
@@ -17,7 +17,7 @@ shows:
     header_image: /images/shows/linux-action-news.png
     acronym: LAN
     name: Linux Action News
-  linuxun:
+  linux-unplugged:
     fireside_url: https://linuxunplugged.com
     jb_url: https://www.jupiterbroadcasting.com/show/linuxun
     header_image: /images/shows/linuxun.png
@@ -29,7 +29,7 @@ shows:
     header_image: /images/shows/extras.png
     acronym: JE
     name: Jupiter EXTRAS
-  officehours:
+  office-hours:
     fireside_url: https://www.officehours.hair
     jb_url: https://www.jupiterbroadcasting.com/show/office
     header_image: /images/shows/officehours.png
