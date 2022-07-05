@@ -2,6 +2,8 @@
 
 Scraper written in python to convert episodes hosted on Fireside or jupiterbroadcasting.com into Hugo files.
 
+Originally based on [Self-Hosted show-notes scraper](https://github.com/selfhostedshow/show-notes/blob/main/scrape.py) 
+
 
 All the scraped data is saved into the `./data` folder.
 
