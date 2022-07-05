@@ -8,7 +8,6 @@ import html2text
 import requests
 import yaml
 from bs4 import BeautifulSoup, ResultSet
-from dateutil.parser import parse as date_parse
 from loguru import logger
 from models import Episode, Person, Sponsor
 
