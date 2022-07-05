@@ -15,6 +15,9 @@ from models import Episode, Person, Sponsor
 
 config = {}
 
+IS_SCRAPE_ONLY_RECENT = os.getenv("SCRAPE_ONLY_RECENT", False)
+RECENT_EP_LIMIT = 3
+
 # Root dir where all the scraped data should to saved to.
 # The data save to this dir follows the directory structure of the Hugo files relative
 # to the root of the repo.
@@ -366,7 +369,7 @@ def scrape_data_from_jb(shows, executor):
         jb_populate_direct_links_for_episode(page_content, ep_data, show, ep)
 
     # save to a json file - this might be useful for files migrations
-    save_json_file("jb_all_shows_links.json", JB_DATA, DATA_ROOT_DIR)
+    # save_json_file("jb_all_shows_links.json", JB_DATA, DATA_ROOT_DIR)
     logger.success(">>> Finished scraping data from jupiterbroadcasting.com")
 
 def jb_get_ep_page_content(page_url, ep_data, show, ep):
@@ -408,14 +411,7 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
     show_data = {}
     JB_DATA.update({show_slug: show_data})
 
-    page_soup = BeautifulSoup(requests.get(
-        show_base_url).content, "html.parser")
-    pages_span = page_soup.find("span", class_="pages")
-    if pages_span:
-        last_page = pages_span.text.split(" ")[-1]
-        last_page = int(last_page)
-    else:
-        last_page = 1  # Just one page
+    last_page = jb_get_last_page_of_show(show_base_url)
 
     futures = []
 
@@ -429,6 +425,12 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
         page_soup = BeautifulSoup(resp.content, "html.parser")
         videoitems = page_soup.find_all("div", class_="videoitem")
         for idx, item in enumerate(videoitems):
+            if IS_SCRAPE_ONLY_RECENT and idx >= RECENT_EP_LIMIT:
+                logger.debug(f"Limiting scraping to only {RECENT_EP_LIMIT} most"
+                            " recent episodes")
+                break
+
+
             try:
                 link = item.find("a")
                 link_href = link.get("href")
@@ -462,6 +464,22 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     f"  page: {page}\n"
                     f"  ep_idx: {idx}\n"
                     f"  html: {item.string}")
+
+def jb_get_last_page_of_show(show_base_url):
+    if IS_SCRAPE_ONLY_RECENT:
+        logger.debug(f"Force only scraping of the most recent page")
+        # Scrape only the most recent page
+        return 1
+
+    page_soup = BeautifulSoup(requests.get(
+        show_base_url).content, "html.parser")
+    pages_span = page_soup.find("span", class_="pages")
+    if pages_span:
+        last_page = pages_span.text.split(" ")[-1]
+        last_page = int(last_page)
+    else:
+        last_page = 1  # Just one page
+    return last_page
 
 
 def scrape_hosts_and_guests(shows, executor):
@@ -647,6 +665,12 @@ def scrape_episodes_from_fireside(shows, executor):
             show_config['fireside_url'] + "/json").json()
 
         for idx, api_episode in enumerate(api_data["items"]):
+
+            if IS_SCRAPE_ONLY_RECENT and idx >= RECENT_EP_LIMIT:
+                logger.debug(f"Limiting scraping to only {RECENT_EP_LIMIT} most"
+                            " recent episodes")
+                break
+
             futures.append(executor.submit(
                 create_episode, api_episode, show_config,
                 show_slug, output_dir
