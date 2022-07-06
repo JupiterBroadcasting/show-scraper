@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import os
+import sys
 from typing import Dict, List
 from urllib.error import HTTPError
 from urllib.parse import urlparse
@@ -15,8 +16,11 @@ from models import Episode, Person, Sponsor
 
 config = {}
 
-IS_SCRAPE_ONLY_RECENT = os.getenv("SCRAPE_ONLY_RECENT", False)
-RECENT_EP_LIMIT = 3
+
+# Limit scraping only the latest episodes of the show (executes the script much faster!)
+# Used with GitHub Actions to run on a daily schedule and scrape the latest episodes.
+IS_LATEST_ONLY = bool(os.getenv("LATEST_ONLY", False))
+LATEST_ONLY_EP_LIMIT = 1
 
 # Root dir where all the scraped data should to saved to.
 # The data save to this dir follows the directory structure of the Hugo files relative
@@ -102,7 +106,9 @@ def create_episode(api_episode,
 
         output_file = f"{output_dir}/{episode_number}.md"
 
-        if os.path.isfile(output_file):
+        if not IS_LATEST_ONLY and os.path.isfile(output_file):
+            # Overwrite when IS_LATEST_ONLY mode is true
+            # Because the episode is published on JB website after fireside
             logger.warning(f"Skipping saving `{output_file}` as it already exists")
             return
 
@@ -170,7 +176,7 @@ def create_episode(api_episode,
                 episode_links=links
             )        
 
-        save_file(output_file, episode.get_hugo_md_file_content())
+        save_file(output_file, episode.get_hugo_md_file_content(), overwrite=IS_LATEST_ONLY)
 
     except Exception as e:
         logger.exception("Failed to create an episode from url!\n"
@@ -444,8 +450,8 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
         page_soup = BeautifulSoup(resp.content, "html.parser")
         videoitems = page_soup.find_all("div", class_="videoitem")
         for idx, item in enumerate(videoitems):
-            if IS_SCRAPE_ONLY_RECENT and idx >= RECENT_EP_LIMIT:
-                logger.debug(f"Limiting scraping to only {RECENT_EP_LIMIT} most"
+            if IS_LATEST_ONLY and idx >= LATEST_ONLY_EP_LIMIT:
+                logger.debug(f"Limiting scraping to only {LATEST_ONLY_EP_LIMIT} most"
                             " recent episodes")
                 break
 
@@ -485,7 +491,7 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     f"  html: {item.string}")
 
 def jb_get_last_page_of_show(show_base_url):
-    if IS_SCRAPE_ONLY_RECENT:
+    if IS_LATEST_ONLY:
         logger.debug(f"Force only scraping of the most recent page")
         # Scrape only the most recent page
         return 1
@@ -685,8 +691,8 @@ def scrape_episodes_from_fireside(shows, executor):
 
         for idx, api_episode in enumerate(api_data["items"]):
 
-            if IS_SCRAPE_ONLY_RECENT and idx >= RECENT_EP_LIMIT:
-                logger.debug(f"Limiting scraping to only {RECENT_EP_LIMIT} most"
+            if IS_LATEST_ONLY and idx >= LATEST_ONLY_EP_LIMIT:
+                logger.debug(f"Limiting scraping to only {LATEST_ONLY_EP_LIMIT} most"
                             " recent episodes")
                 break
 
@@ -734,6 +740,10 @@ def main():
 
 
 if __name__ == "__main__":
+    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Default to INFO
+    logger.remove()  # Remove default logger
+    logger.add(sys.stderr, level=LOG_LVL)
+
     logger.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
     main()
     logger.success("🔥🔥🔥 ALL DONE :) 🔥🔥🔥\n\n")
