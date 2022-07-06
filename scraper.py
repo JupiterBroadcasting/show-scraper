@@ -555,8 +555,8 @@ def scrape_show_hosts(shows: Dict, executor, futures: List) -> Dict[str, Person]
                 type="host",
                 username=username,
                 name=name,
-                avatar=avatar,
-                avatar_small=avatar_small,
+                avatar="/"+avatar,
+                avatar_small="/"+avatar_small,
                 bio=bio,
                 **links_data
             )
