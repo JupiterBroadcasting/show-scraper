@@ -1,5 +1,11 @@
 # JupiterBroadcasting Show Scraper
 
+**ATTENTION:**
+
+**Make commits into the `main` with great caution, as this branch is used in "production" by the [jupiterbroadcasting.com GitHub Action](https://github.com/JupiterBroadcasting/jupiterbroadcasting.com/tree/main/.github/workflows/scrape.yml).**
+
+---
+
 Scraper written in python to convert episodes hosted on Fireside or jupiterbroadcasting.com into Hugo files.
 
 Originally based on [Self-Hosted show-notes scraper](https://github.com/selfhostedshow/show-notes/blob/main/scrape.py) 
@@ -54,5 +60,18 @@ Run the script from the root dir:
 
 ```
 python scraper.py
+```
+
+You can set these env variables:
+
+- `LOG_LVL`: Integer severity value for the loguru library (see [this table](https://loguru.readthedocs.io/en/stable/api/logger.html#levels)). Defaults to 20 (INFO).
+- `LATEST_ONLY`: Set to `1` to scrape only the latest episode of each show defined in `config.yml`. This mode is used for automatically scraping new episode with github actions. Default mode is to scrape all episodes and all data.
+- `DATA_DIR`: The location where all the scraped files would be saved to. Defaults to `./data`.
+
+
+Example:
+
+```
+LOG_LVL=1 LATEST_ONLY=1 python scraper.py
 ```
 
