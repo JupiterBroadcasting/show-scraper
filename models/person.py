@@ -1,10 +1,11 @@
 from typing import Literal, Optional
 from pydantic import BaseModel, HttpUrl, root_validator
 
+PersonType = Literal["host", "guest"]
 
 class Person(BaseModel):
 
-    type: Literal["host", "guest"]
+    type: PersonType
     username: str  # Unique ID
     name: str
     bio: Optional[str]

@@ -2,7 +2,7 @@ import concurrent.futures
 import json
 import os
 import sys
-from typing import Dict, List
+from typing import Dict, List, Literal
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -12,6 +12,7 @@ import yaml
 from bs4 import BeautifulSoup, ResultSet
 from loguru import logger
 from models import Episode, Person, Sponsor
+from models.person import PersonType
 
 
 config = {}
@@ -510,13 +511,14 @@ def jb_get_last_page_of_show(show_base_url):
 def scrape_hosts_and_guests(shows, executor):
     logger.info(">>> Scraping hosts and guests from Fireside...")
     people_dir = os.path.join(DATA_ROOT_DIR, "data", "people")
-    futures = []
 
-    guests = scrape_show_guests(shows, executor, futures)
-    hosts = scrape_show_hosts(shows, executor, futures)
+    guests = scrape_show_guests(shows, executor)
+    hosts = scrape_show_hosts(shows, executor)
     people = guests | hosts  # combine the two dicts (hosts data overrides guests)
-    
-    # Save files asyncronously
+
+
+    # Save json files asyncronously
+    futures = []
     for username, person in people.items():
         futures.append(executor.submit(save_json_file, f"{username}.json", person.dict(), people_dir))
 
@@ -526,7 +528,7 @@ def scrape_hosts_and_guests(shows, executor):
     logger.success(">>> Finished scraping hosts and guests")
 
 
-def scrape_show_hosts(shows: Dict, executor, futures: List) -> Dict[str, Person]:
+def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
     show_hosts = {}
     for show_data in shows.values():
         show_fireside_url = show_data['fireside_url']
@@ -549,27 +551,20 @@ def scrape_show_hosts(shows: Dict, executor, futures: List) -> Dict[str, Person]
             avatar_small_url = host_soup.find("div", class_="host-avatar").find("img").get("src")
             avatar_url = avatar_small_url.replace("_small.jpg", ".jpg")
 
-            # Download and save files asynchronously - hope for the best
-            futures.append(executor.submit(save_avatar_img,
-                           avatar_small_url, username, is_small=True))
-            futures.append(executor.submit(save_avatar_img, avatar_url, username))
+            avatar_small = save_avatar_img(avatar_small_url, username, is_small=True)
+            avatar = save_avatar_img(avatar_url, username)
 
-            avatar_small = get_avatar_relative_path(username, is_small=True)
-            avatar = get_avatar_relative_path(username)
+            append_person_to_dict("host", show_hosts, username, show_data["acronym"],
+                                  name=name,
+                                  avatar="/"+avatar,
+                                  avatar_small="/"+avatar_small,
+                                  bio=bio,
+                                  **links_data)
             
-            show_hosts[username] = Person(
-                type="host",
-                username=username,
-                name=name,
-                avatar="/"+avatar,
-                avatar_small="/"+avatar_small,
-                bio=bio,
-                **links_data
-            )
 
     return show_hosts
 
-def scrape_show_guests(shows: Dict, executor, futures) -> Dict[str, Person]:
+def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
     """Return dict of Person by username
     """
 
@@ -592,26 +587,29 @@ def scrape_show_guests(shows: Dict, executor, futures) -> Dict[str, Person]:
             avatar_small_url = l.find("img").get("src").split("?")[0]
             avatar_url = avatar_small_url.replace("_small.jpg", ".jpg")
 
-            # Download and save files asynchronously - hope for the best
-            futures.append(executor.submit(save_avatar_img,
-                           avatar_small_url, username, is_small=True))
-            futures.append(executor.submit(save_avatar_img, avatar_url, username))
-
-            avatar_small = get_avatar_relative_path(username, is_small=True)
-            avatar = get_avatar_relative_path(username)
+            avatar_small = save_avatar_img(avatar_small_url, username, is_small=True)
+            avatar = save_avatar_img(avatar_url, username)
 
             html_page = guest_pages.get(url)
             page_data = parse_person_page(html_page)
-            
-            show_guests[username] = Person(
-                type="guest",
-                username=username,
-                name=name,
-                avatar=avatar,
-                avatar_small=avatar_small,
-                **page_data
-            )
+
+            append_person_to_dict("guest", show_guests, username, show_data["acronym"],
+                                  name=name,
+                                  avatar="/"+avatar,
+                                  avatar_small="/"+avatar_small,
+                                  **page_data)
+
     return show_guests
+
+
+def append_person_to_dict(p_type: PersonType, the_dict: dict, username, show_acr: str, **data):
+    new = Person(type=p_type, username=username, **data)
+    existing = the_dict.get(username)
+    if existing and existing.dict() != new.dict() and not IS_LATEST_ONLY:
+        # If different, save as an alternative version
+        the_dict[f"__{username}_{show_acr}"] = new
+    else:
+        the_dict[username] = new
 
 
 def parse_person_page(html_page):
@@ -730,11 +728,11 @@ def main():
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Must be first. Here the JB_DATA global is populated
-        scrape_data_from_jb(shows, executor)
+        # scrape_data_from_jb(shows, executor)
 
-        scrape_episodes_from_fireside(shows, executor)
+        # scrape_episodes_from_fireside(shows, executor)
 
-        save_sponsors(executor)
+        # save_sponsors(executor)
 
         scrape_hosts_and_guests(shows, executor)
 
