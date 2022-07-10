@@ -23,7 +23,7 @@ shows:
     jb_url: https://www.jupiterbroadcasting.com/show/linuxun
     acronym: LUP
     name: LINUX Unplugged
-  extras:
+  jupiter-extras:
     fireside_url: https://extras.show
     fireside_slug: extras
     jb_url: https://www.jupiterbroadcasting.com/show/extras
