@@ -728,11 +728,11 @@ def main():
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Must be first. Here the JB_DATA global is populated
-        # scrape_data_from_jb(shows, executor)
+        scrape_data_from_jb(shows, executor)
 
-        # scrape_episodes_from_fireside(shows, executor)
+        scrape_episodes_from_fireside(shows, executor)
 
-        # save_sponsors(executor)
+        save_sponsors(executor)
 
         scrape_hosts_and_guests(shows, executor)
 
