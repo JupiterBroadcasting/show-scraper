@@ -24,6 +24,15 @@ class Episode(BaseModel):
     # Source: fireside website of each show
     episode: int
 
+    # Episode number again, but specifically for Hugo.
+    # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
+    # zero padding in the link to the episdoe (e.g. `https://coder.show/42`).
+    # Hugo will use the filename for the slug by default, unless this param is set to
+    # override it:
+    #   https://gohugo.io/content-management/organization/#slug
+    # Source: Generated using `episode` above
+    slug: str = ""
+
     # Episode number padded with 3 zeros. Generated from `episode`
     episode_padded: str
 
@@ -119,6 +128,15 @@ class Episode(BaseModel):
         """
         cls._generate_header_image(values)
         cls._generate_categories(values)
+        cls._generate_slug(values)
+        return values
+
+    @classmethod
+    def _generate_slug(cls, values):
+        """Set the episode number as the slug.
+        """
+        epnum = values.get("episode")
+        values["slug"] = str(epnum)
         return values
 
     @classmethod

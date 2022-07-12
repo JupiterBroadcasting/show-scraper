@@ -103,9 +103,9 @@ def create_episode(api_episode,
     try:
         # RANT: What kind of API doesn't give the episode number?!
         episode_number = int(api_episode["url"].split("/")[-1])
-        episode_number_padded = f"{episode_number:03}"
+        episode_number_padded = f"{episode_number:04}"
 
-        output_file = f"{output_dir}/{episode_number}.md"
+        output_file = f"{output_dir}/{episode_number_padded}.md"
 
         if not IS_LATEST_ONLY and os.path.isfile(output_file):
             # Overwrite when IS_LATEST_ONLY mode is true
