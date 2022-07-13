@@ -24,6 +24,13 @@ class Episode(BaseModel):
     # Source: fireside website of each show
     episode: int
 
+    # Episode number padded with 3 zeros. Generated from `episode`
+    episode_padded: str
+
+    # Episode GUID
+    # Source: Fireside json api: `items[n].id`
+    episode_guid: str
+
     # Episode number again, but specifically for Hugo.
     # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
     # zero padding in the link to the episdoe (e.g. `https://coder.show/42`).
@@ -32,9 +39,6 @@ class Episode(BaseModel):
     #   https://gohugo.io/content-management/organization/#slug
     # Source: Generated using `episode` above
     slug: str = ""
-
-    # Episode number padded with 3 zeros. Generated from `episode`
-    episode_padded: str
 
     # Source: fireside website of each show
     title: str

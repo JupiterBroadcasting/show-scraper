@@ -105,6 +105,8 @@ def create_episode(api_episode,
         episode_number = int(api_episode["url"].split("/")[-1])
         episode_number_padded = f"{episode_number:04}"
 
+        episode_guid = api_episode["id"]
+
         output_file = f"{output_dir}/{episode_number_padded}.md"
 
         if not IS_LATEST_ONLY and os.path.isfile(output_file):
@@ -155,6 +157,7 @@ def create_episode(api_episode,
                 show_name=show_config["name"],
                 episode=episode_number,
                 episode_padded=episode_number_padded,
+                episode_guid=episode_guid,
                 title=get_plain_title(api_episode["title"]),
                 description=blurb,
                 date=publish_date,
@@ -738,7 +741,7 @@ def main():
 
 
 if __name__ == "__main__":
-    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Default to INFO
+    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Defaults to INFO
     logger.remove()  # Remove default logger
     logger.add(sys.stderr, level=LOG_LVL)
 
