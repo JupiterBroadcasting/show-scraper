@@ -1,4 +1,6 @@
 from datetime import datetime, time
+import json
+from textwrap import indent
 from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, AnyHttpUrl, HttpUrl, Json, root_validator, validator
 
@@ -24,6 +26,13 @@ class Episode(BaseModel):
     # Source: fireside website of each show
     episode: int
 
+    # Episode number padded with 3 zeros. Generated from `episode`
+    episode_padded: str
+
+    # Episode GUID
+    # Source: Fireside json api: `items[n].id`
+    episode_guid: str
+
     # Episode number again, but specifically for Hugo.
     # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
     # zero padding in the link to the episdoe (e.g. `https://coder.show/42`).
@@ -32,9 +41,6 @@ class Episode(BaseModel):
     #   https://gohugo.io/content-management/organization/#slug
     # Source: Generated using `episode` above
     slug: str = ""
-
-    # Episode number padded with 3 zeros. Generated from `episode`
-    episode_padded: str
 
     # Source: fireside website of each show
     title: str
@@ -129,6 +135,7 @@ class Episode(BaseModel):
         cls._generate_header_image(values)
         cls._generate_categories(values)
         cls._generate_slug(values)
+        cls._delete_dup_links(values)
         return values
 
     @classmethod
@@ -154,12 +161,65 @@ class Episode(BaseModel):
     def _generate_header_image(cls, values):
         slug = values.get("show_slug")
         values["header_image"] = f"/images/shows/{slug}.png"
+    
+    @classmethod
+    def _delete_dup_links(cls, values):
+        # podcast_alt_file from JB might have same link. If same - set to None
+        try:
+            file = values["podcast_file"]
+            alt = values.get("podcast_alt_file")  # Optional
+            if not alt:
+                return values
+
+            file = cls._rm_http_or_https(file)
+            alt = cls._rm_http_or_https(alt)
+
+            if alt == file:
+                values["podcast_alt_file"] = None
+            
+            return values
+        except:
+            print(json.dumps(values, indent=2))
 
     @validator('youtube_link')
     def check_youtube_link(cls, v):
         if v:
             assert v.host in VALID_YOUTUBE_HOSTNAMES, f"host of the url must be one of {VALID_YOUTUBE_HOSTNAMES}, instead got {v.host}"
         return v
+
+    @validator('podcast_file', 'podcast_alt_file', 'podcast_ogg_file', 'video_file', 'video_hd_file', 'video_mobile_file', pre=True)
+    def remove_tracking(cls, v: Optional[str]):
+        if not v:
+            return v
+
+        # Need this to add back the proper scheme later.
+        # Video files from scale engine don't load using https, might be the case with 
+        # other links.         
+        scheme = "https://" if v.startswith("https://") else "http://"
+
+        # Remove the scheme
+        v = cls._rm_http_or_https(v)
+
+        if v.startswith("www.podtrac.com/pts/redirect"):
+            v = v.removeprefix("www.podtrac.com/pts/redirect")
+            # Remove the file ext part before with the first slash, e.g. ".mp3/" or ".ogg/"
+            v = v[v.find("/")+1:]
+
+        if v.startswith("chtbl.com/track/"):
+            v = v.removeprefix("chtbl.com/track/")
+            v = v[v.find("/")+1:]  # remove the tracking + first slash ID e.g. "392D9/"
+        
+        # Add back scheme
+        v = f"{scheme}{v}"
+
+        return v
+
+    @classmethod
+    def _rm_http_or_https(cls, v: str) -> str:
+        v = v.removeprefix("http://")
+        v = v.removeprefix("https://")
+        return v
+
 
 
     def get_hugo_md_file_content(self) -> str:
