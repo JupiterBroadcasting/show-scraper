@@ -1,11 +1,13 @@
 FROM python:3.10-alpine
 
-RUN mkdir /data && chown -R 1000:1000 /data
+ENV PIPENV_VENV_IN_PROJECT=1
 
 WORKDIR /scraper
 COPY . .
-RUN chown 1000:1000 ./scraper.py
-RUN pip install -r requirements.txt
+RUN pip install pipenv
+RUN pipenv sync
+RUN mkdir -p /data && chown -R 1000:1000 ./scraper.py .venv/ /data
 
 USER 1000
-CMD [ "python3", "scraper.py" ]
+ENTRYPOINT [ "pipenv", "run" ]
+CMD [ "./scraper.py" ]
