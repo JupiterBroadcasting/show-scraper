@@ -9,11 +9,13 @@ from urllib.error import HTTPError
 from urllib.parse import urlparse
 
 import html2text
+from pydantic import HttpUrl
 import requests
 import yaml
 from bs4 import BeautifulSoup, ResultSet
 from loguru import logger
 from models import Episode, Person, Sponsor
+from models.config import ConfigData, ShowDetails
 from models.person import PersonType
 
 
@@ -99,7 +101,7 @@ def get_plain_title(title: str) -> str:
 
 
 def create_episode(api_episode,
-                   show_config,
+                   show_config: ShowDetails,
                    show_slug: str,
                    output_dir: str):
     try:
@@ -128,7 +130,7 @@ def create_episode(api_episode,
         blurb = api_episode["summary"]
 
         sponsors = parse_sponsors(
-            api_soup, page_soup, show_config["acronym"], episode_number)
+            api_soup, page_soup, show_config.acronym, episode_number)
 
         links_list = get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")
         links = html2text.html2text(str(links_list)) if links_list else None
@@ -156,7 +158,7 @@ def create_episode(api_episode,
 
         episode = Episode(
                 show_slug=show_slug,
-                show_name=show_config["name"],
+                show_name=show_config.name,
                 episode=episode_number,
                 episode_padded=episode_number_padded,
                 episode_guid=episode_guid,
@@ -188,10 +190,10 @@ def create_episode(api_episode,
         logger.exception("Failed to create an episode from url!\n"
                          f"episode_url: {api_episode.get('url')}")
 
-def get_podcast_chapters(api_episode, show_config):
+def get_podcast_chapters(api_episode, show_config: ShowDetails):
     try:
         chapters_url = CHAPTERS_URL_TPL.format(
-                show=show_config["fireside_slug"],
+                show=show_config.fireside_slug,
                 ep_id=api_episode["id"])
 
         resp = requests.get(chapters_url)
@@ -213,9 +215,9 @@ def save_file(file_path, content, mode="w", overwrite=False):
     logger.info(f"Saved file: {file_path}")
     return True
 
-def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config, ep):
-    show = show_config["acronym"]
-    base_url = show_config["fireside_url"]
+def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep):
+    show = show_config.acronym
+    base_url = show_config.fireside_url
 
     episode_hosts = []
 
@@ -235,9 +237,9 @@ def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config, ep):
     return episode_hosts
 
 
-def parse_guests_in_ep(page_soup, show_config, ep):
-    show = show_config["acronym"]
-    base_url = show_config["fireside_url"]
+def parse_guests_in_ep(page_soup, show_config: ShowDetails, ep):
+    show = show_config.acronym
+    base_url = show_config.fireside_url
 
     episode_guests = []
 
@@ -382,12 +384,12 @@ def parse_name(page_soup, username, guest_data):
     return name
      
 
-def scrape_data_from_jb(shows, executor):
+def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     logger.info(">>> Scraping data from jupiterbroadcasting.com...")
 
     # Collect all links for episode page of each show into JB_DATA
     for show_slug, show_config in shows.items():
-        show_base_url = show_config["jb_url"]
+        show_base_url = show_config.jb_url
         jb_populate_episodes_urls(show_slug, show_base_url)
     logger.success(">>> Finished collecting urls of episode pages") 
 
@@ -442,7 +444,7 @@ def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
             f"  ep: {ep}")
 
 
-def jb_populate_episodes_urls(show_slug, show_base_url):
+def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl):
     show_data = {}
     JB_DATA.update({show_slug: show_data})
 
@@ -501,23 +503,36 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     f"  html: {item.string}")
 
 def jb_get_last_page_of_show(show_base_url):
+    """
+    This uses the pagination element on https://www.jupiterbroadcasting.com/show/<show_name> to determine
+    how many pages of the show there is to process
+    """
+
+    # this is an override to only get the most recent page of the show
     if IS_LATEST_ONLY:
         logger.debug(f"Force only scraping of the most recent page")
         # Scrape only the most recent page
         return 1
 
+    # requests the first page of the show
     page_soup = BeautifulSoup(requests.get(
         show_base_url).content, "html.parser")
+    # parses the pagination numbers i.e. "Page 1 of 7"
     pages_span = page_soup.find("span", class_="pages")
+    
+    # if the pagination exists
     if pages_span:
-        last_page = pages_span.text.split(" ")[-1]
-        last_page = int(last_page)
+        # grabs the last space delimited text
+        #   i.e. 7 with "Page 1 of 7"
+        last_page = int(pages_span.text.split(" ")[-1])
+    
+    # if no pagination element exists
     else:
         last_page = 1  # Just one page
     return last_page
 
 
-def scrape_hosts_and_guests(shows, executor):
+def scrape_hosts_and_guests(shows: Dict[str, ShowDetails] , executor):
     logger.info(">>> Scraping hosts and guests from Fireside...")
     people_dir = os.path.join(DATA_ROOT_DIR, "data", "people")
 
@@ -541,10 +556,10 @@ def scrape_hosts_and_guests(shows, executor):
     logger.success(">>> Finished scraping hosts and guests")
 
 
-def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
+def scrape_show_hosts(shows: Dict[str, ShowDetails] , executor) -> Dict[str, Person]:
     show_hosts = {}
     for show_data in shows.values():
-        show_fireside_url = show_data['fireside_url']
+        show_fireside_url = show_data.fireside_url
         all_hosts_url = f"{show_fireside_url}/hosts"
         hosts_soup = BeautifulSoup(requests.get(all_hosts_url).content, "html.parser")
         
@@ -567,7 +582,7 @@ def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
             avatar_small = save_avatar_img(avatar_small_url, username, is_small=True)
             avatar = save_avatar_img(avatar_url, username)
 
-            append_person_to_dict("host", show_hosts, username, show_data["acronym"],
+            append_person_to_dict("host", show_hosts, username, show_data.acronym,
                                   name=name,
                                   avatar="/"+avatar,
                                   avatar_small="/"+avatar_small,
@@ -577,7 +592,7 @@ def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
 
     return show_hosts
 
-def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
+def scrape_show_guests(shows: Dict[str, ShowDetails], executor) -> Dict[str, Person]:
     """Return dict of Person by username
     """
 
@@ -585,7 +600,7 @@ def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
 
     # no need to do thread since there's only a handful number of shows
     for show_data in shows.values():
-        show_fireside_url = show_data['fireside_url']
+        show_fireside_url = show_data.fireside_url
         all_guests_url = f"{show_fireside_url}/guests"
         guests_soup = BeautifulSoup(requests.get(all_guests_url).content, "html.parser")
         links = guests_soup.find("ul", class_="show-guests").find_all("a")
@@ -606,7 +621,7 @@ def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
             html_page = guest_pages.get(url)
             page_data = parse_person_page(html_page)
 
-            append_person_to_dict("guest", show_guests, username, show_data["acronym"],
+            append_person_to_dict("guest", show_guests, username, show_data.acronym,
                                   name=name,
                                   avatar="/"+avatar,
                                   avatar_small="/"+avatar_small,
@@ -688,17 +703,18 @@ def get_pages_content_threaded(urls: List[str], executor) -> Dict[str, str]:
     return result
 
 
-def scrape_episodes_from_fireside(shows, executor):
+def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
     logger.info(">>> Scraping episodes from Fireside...")
 
     futures = []
     for show_slug, show_config in shows.items():
+
         # Use same structure as in the root project for easy copy over
         output_dir = os.path.join(
             DATA_ROOT_DIR, "content", "show", show_slug)
 
         api_data = requests.get(
-            show_config['fireside_url'] + "/json").json()
+            show_config.fireside_url + "/json").json()
 
         for idx, api_episode in enumerate(api_data["items"]):
 
@@ -738,17 +754,17 @@ def main():
     global config
     with open("config.yml") as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
-        shows = config['shows']
+        validated_config = ConfigData(shows=config['shows'], usernames_map=config['usernames_map'])
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         # Must be first. Here the JB_DATA global is populated
-        scrape_data_from_jb(shows, executor)
+        scrape_data_from_jb(validated_config.shows, executor)
 
-        scrape_episodes_from_fireside(shows, executor)
+        scrape_episodes_from_fireside(validated_config.shows, executor)
 
         save_sponsors(executor)
 
-        scrape_hosts_and_guests(shows, executor)
+        scrape_hosts_and_guests(validated_config.shows, executor)
 
 
 if __name__ == "__main__":
