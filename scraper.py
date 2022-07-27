@@ -4,12 +4,13 @@ import concurrent.futures
 import json
 import os
 import sys
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
 import html2text
 from pydantic import HttpUrl
+from pydantic.json import pydantic_encoder
 import requests
 import yaml
 from bs4 import BeautifulSoup, ResultSet
@@ -17,6 +18,7 @@ from bs4.element import Tag
 from loguru import logger
 from models import Episode, Person, Sponsor
 from models.config import ConfigData, ShowDetails
+from models.misc import Jbd_Episode_Record
 from models.person import PersonType
 
 
@@ -49,6 +51,7 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 # {
 #     "coderradio": {   # <-- `show_slug`` as defined in config.yml
 #         "123": {   # <-- ep number
+#             # rest defined in models.misc.EPISODE_RECORD
 #             "youtube_link": "https://www.youtube.com/watch?v=98Mh0BP__gE",
 #             ...
 #         }
@@ -56,6 +59,7 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 #     "show_slug_2": { ... }
 # }
 JB_DATA = {}
+JB_DATA: Dict[str, Dict[int, Jbd_Episode_Record]]
 
 CHAPTERS_URL_TPL = "https://feeds.fireside.fm/{show}/json/episodes/{ep_id}/chapters"
 
@@ -150,9 +154,23 @@ def create_episode(api_episode,
 
         show_attachment = api_episode["attachments"][0]
 
-        jb_ep_data = JB_DATA.get(show_slug, {}).get(episode_number, {})
+        # not setting this to empty values (which is what .get does with {} as the second parameter)
+        #   so informed about issues like GH issue 16
+        jb_ep_data = JB_DATA.get(show_slug).get(episode_number)
         # logger.debug(f"{episode_number} jb_ep_data: {jb_ep_data}")
-        jb_url = jb_ep_data.get("jb_url")
+        jb_ep_data: Jbd_Episode_Record
+        try:
+            jb_url = jb_ep_data.jb_url
+        except AttributeError as errorz:
+            # TODO: create some notification when 16 happens
+            #   still wnat to create the episode since the jb_url
+            #   deosn't get used in the new website.
+            #   this means that we're just pulling info directly
+            #   from fireside and have no direct downloads
+            logger.exception("Show won't have direct download links!\n"
+                             f"episode_url: {api_episode.get('url')}")
+            jb_url = None
+            # raise errorz
         if jb_url:
             jb_url = urlparse(jb_url).path
 
@@ -174,12 +192,12 @@ def create_episode(api_episode,
                 podcast_file=show_attachment["url"],
                 podcast_bytes=show_attachment.get("size_in_bytes"),
                 podcast_chapters=podcast_chapters,
-                podcast_alt_file=jb_ep_data.get("mp3_audio"),
-                podcast_ogg_file=jb_ep_data.get("ogg_audio"),
-                video_file=jb_ep_data.get("video"),
-                video_hd_file=jb_ep_data.get("hd_video"),
-                video_mobile_file=jb_ep_data.get("mobile_video"),
-                youtube_link=jb_ep_data.get("youtube"),
+                podcast_alt_file=jb_ep_data.mp3_audio,
+                podcast_ogg_file=jb_ep_data.ogg_audio,
+                video_file=jb_ep_data.video,
+                video_hd_file=jb_ep_data.hd_video,
+                video_mobile_file=jb_ep_data.mobile_video,
+                youtube_link=jb_ep_data.youtube,
                 jb_url=jb_url,
                 fireside_url=urlparse(api_episode["url"]).path,
                 episode_links=links
@@ -400,28 +418,47 @@ def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     for show, show_episodes in JB_DATA.items():
         for ep, ep_data in show_episodes.items():
             futures.append(executor.submit(
-                jb_get_ep_page_content, ep_data["jb_url"], ep_data, show, ep))
+                jb_get_ep_page_content, ep_data.jb_url, ep_data, show, ep))
 
+    # after previous is completed then parse + load all info
+    #   into JB_DATA for direct downloads
     for future in concurrent.futures.as_completed(futures):
         page_content, ep_data, show, ep = future.result()
+        page_content: requests.Response
+        ep_data: Jbd_Episode_Record
+        show: str # episode slug
+        ep: int # episode number
+
         jb_populate_direct_links_for_episode(page_content, ep_data, show, ep)
 
     # save to a json file - this might be useful for files migrations
     # save_json_file("jb_all_shows_links.json", JB_DATA, DATA_ROOT_DIR)
     logger.success(">>> Finished scraping data from jupiterbroadcasting.com")
 
-def jb_get_ep_page_content(page_url, ep_data, show, ep):
+def jb_get_ep_page_content(page_url: HttpUrl, ep_data: Jbd_Episode_Record, show: str, ep: int)-> Tuple[requests.Response, Dict, str, int]:
+    """
+    returns a tuple with the page's content, Jbd_Episode_Record, show slug, and episode number
+    """
     resp = requests.get(page_url)
-    return resp.content, ep_data, show, ep
+    return resp, ep_data, show, ep
 
-def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
+def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_data: Jbd_Episode_Record, show: str, ep: int) -> None:
+    """
+    this populates the rest of the Jbd_Episode_Record object with direct
+    download links to various services (YouTube, OGG audio, etc..).
+    It dynamically adds them based on their name (i.e. video, hd_video, youtube, mp3_audio, etc...)
+    as well as the corrisponding URL for the direct download.
+
+    This also modifies the ep_data parameter in place, which is why it doesn't return anything
+    """
     try:
-        ep_soup = BeautifulSoup(ep_page_content, "html.parser")
+        ep_soup = BeautifulSoup(ep_page_content.content, "html.parser")
         dd_div = ep_soup.find("div", attrs={"id": "direct-downloads"})
         if dd_div:
             dl_links = dd_div.find_all("a")
         else:
-            # older episodes have different structure.
+            # older episodes have different structure. (example below)
+            # https://web.archive.org/web/20200227001055/https://www.jupiterbroadcasting.com/90751/budgie-jumping-lup-120/
             p_links = get_list(ep_soup, "Direct Download:", "h3", "p")
             if p_links:
                 dl_links = p_links.find_all("a")
@@ -435,9 +472,7 @@ def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
         for dl_link in dl_links:
             url = dl_link.get("href").strip("\\\"")
             slug = dl_link.text.lower().replace(" ", "_")
-            ep_data.update({
-                slug: url
-            })
+            setattr(ep_data, slug, url)
     except Exception as e:
         logger.exception(
             "Failed to parse direct links for episode.\n"
@@ -473,7 +508,8 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
         'Goodbye from Linux Action News': 152.5,
         # Some Coder exceptions
         'Say My Functional Name | Coder Radio': 343,
-        'New Show! | Coder Radio': 0
+        'New Show! | Coder Radio': 0,
+        "Someone Else’s Computer | Self-Hosted 59": 60,
     }
 
     futures = []
@@ -511,15 +547,15 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
                 elif title in show_exceptions.keys():
                     ep_num = show_exceptions[title]
                 else:
+                    # if ep_num != link_href.split('-')[-1].strip('/'):
+                    #     raise ValueError(f"Episode URL ({link_href}) doesn't have the same episode number as the title: {ep_num}")
                     ep_num = int(ep_num)
 
                 # catching if overwritting episodes with JB_DATA
                 if ep_num in show_data.keys():
-                    raise ValueError(f"There is already an existing show for episode number: {ep_num}\nWhich is: {show_data[ep_num]}")
+                    raise ValueError(f"There is already an existing show for episode number: {ep_num}\nWhich is: {show_data[ep_num]}\nCurrent attempted info: {item.contents}\nAll current info: {JB_DATA}")
 
-                show_data.update({ep_num: {
-                    "jb_url": link_href
-                }})
+                show_data.update({ep_num: Jbd_Episode_Record(jb_url=link_href)})
             except Exception as e:
                 logger.exception(
                     "Failed to get episode page link and number from JB site.\n"
@@ -801,4 +837,5 @@ if __name__ == "__main__":
     logger.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
     main()
     logger.success("🔥🔥🔥 ALL DONE :) 🔥🔥🔥\n\n")
+    # logger.debug(json.dumps(JB_DATA, default=pydantic_encoder))
     exit(0)
