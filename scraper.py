@@ -13,6 +13,7 @@ from pydantic import HttpUrl
 import requests
 import yaml
 from bs4 import BeautifulSoup, ResultSet
+from bs4.element import Tag
 from loguru import logger
 from models import Episode, Person, Sponsor
 from models.config import ConfigData, ShowDetails
@@ -444,11 +445,36 @@ def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
             f"  ep: {ep}")
 
 
-def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl):
-    show_data = {}
-    JB_DATA.update({show_slug: show_data})
+def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
+    """
+    Populates the JB_DATA global dictionary with
+    {
+        <show_slug>: {
+            <episode_number>: {
+                "jb_url": "<episode_link>"
+            }
+        }
+    """
+    # setting JB_DATA[show_slug] to an empty dictionary
+    JB_DATA.setdefault(show_slug, {})
+    # referencing aformentioned show slug as show_data
+    show_data = JB_DATA[show_slug]
 
     last_page = jb_get_last_page_of_show(show_base_url)
+
+    # these are edge cases for the loop below which don't match
+    #   the typical episode number format of "<title> <episode_number>"
+    show_exceptions = {
+        # LAN edge case. This episode is between ep152 and 153, hence it
+        # shall be officially titled as episode 152.5 for now forth
+        # (hopefully having floaty number won't brake things 😛)
+
+        # TODO create the episode file for this, cuz it's not in Fireside
+        'Goodbye from Linux Action News': 152.5,
+        # Some Coder exceptions
+        'Say My Functional Name | Coder Radio': 343,
+        'New Show! | Coder Radio': 0
+    }
 
     futures = []
 
@@ -459,9 +485,12 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl):
 
     for future in concurrent.futures.as_completed(futures):
         resp = future.result()
+        resp: requests.Response
+
         page_soup = BeautifulSoup(resp.content, "html.parser")
         videoitems = page_soup.find_all("div", class_="videoitem")
         for idx, item in enumerate(videoitems):
+            item: Tag
             if IS_LATEST_ONLY and idx >= LATEST_ONLY_EP_LIMIT:
                 logger.debug(f"Limiting scraping to only {LATEST_ONLY_EP_LIMIT} most"
                             " recent episodes")
@@ -469,27 +498,24 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl):
 
 
             try:
+                # finds anchor tag that links to the episode
                 link = item.find("a")
+
                 link_href = link.get("href")
-                ep_num = link.get("title").split(" ")[-1]
+                title = link.get("title")
+                ep_num = title.split(" ")[-1]
 
                 if ep_num == "LU1":
                     # LUP edge case for ep 1
                     ep_num = 1
-                if link.get("title") == "Goodbye from Linux Action News":
-                    # LAN edge case. This episode is between ep152 and 153, hence it
-                    # shall be officially titled as episode 152.5 for now forth
-                    # (hopefully having floaty number won't brake things 😛)
-
-                    # TODO create the episode file for this, cuz it's not in Fireside
-                    ep_num = 152.5
-                # Some Coder exceptions
-                if link.get("title") == "Say My Functional Name | Coder Radio":
-                    ep_num = 343
-                if link.get("title") == "New Show! | Coder Radio":
-                    ep_num = 0
+                elif title in show_exceptions.keys():
+                    ep_num = show_exceptions[title]
                 else:
                     ep_num = int(ep_num)
+
+                # catching if overwritting episodes with JB_DATA
+                if ep_num in show_data.keys():
+                    raise ValueError(f"There is already an existing show for episode number: {ep_num}\nWhich is: {show_data[ep_num]}")
 
                 show_data.update({ep_num: {
                     "jb_url": link_href
@@ -502,7 +528,7 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl):
                     f"  ep_idx: {idx}\n"
                     f"  html: {item.string}")
 
-def jb_get_last_page_of_show(show_base_url):
+def jb_get_last_page_of_show(show_base_url) -> int:
     """
     This uses the pagination element on https://www.jupiterbroadcasting.com/show/<show_name> to determine
     how many pages of the show there is to process
