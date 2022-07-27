@@ -4,7 +4,7 @@ import concurrent.futures
 import json
 import os
 import sys
-from typing import Dict, List, Literal
+from typing import Dict, List
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -768,7 +768,7 @@ def main():
 
 
 if __name__ == "__main__":
-    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Defaults to INFO
+    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Defaults to INFO, 10 for debug
     logger.remove()  # Remove default logger
     logger.add(sys.stderr, level=LOG_LVL)
 
