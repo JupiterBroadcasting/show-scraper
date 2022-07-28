@@ -159,6 +159,8 @@ def create_episode(api_episode,
         jb_ep_data = JB_DATA.get(show_slug).get(episode_number)
         # logger.debug(f"{episode_number} jb_ep_data: {jb_ep_data}")
         jb_ep_data: Jbd_Episode_Record
+        # TODO: handle this use case:
+        # https://github.com/JupiterBroadcasting/show-scraper/issues/16#issuecomment-1196751641
         try:
             jb_url = jb_ep_data.jb_url
         except AttributeError as errorz:
@@ -168,7 +170,10 @@ def create_episode(api_episode,
             #   this means that we're just pulling info directly
             #   from fireside and have no direct downloads
             logger.exception("Show won't have direct download links!\n"
-                             f"episode_url: {api_episode.get('url')}")
+                             f"episode_url: {api_episode.get('url')}\n"
+                             f"data we have: {jb_ep_data}\n"
+                             f"error: {errorz}")
+            jb_ep_data = Jbd_Episode_Record()
             jb_url = None
             # raise errorz
         if jb_url:
@@ -818,7 +823,7 @@ def main():
         config = yaml.load(f, Loader=yaml.SafeLoader)
         validated_config = ConfigData(shows=config['shows'], usernames_map=config['usernames_map'])
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         # Must be first. Here the JB_DATA global is populated
         scrape_data_from_jb(validated_config.shows, executor)
 
