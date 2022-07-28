@@ -474,10 +474,16 @@ def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_
                     f"  ep: {ep}")
                 return
 
+    # this uses the resulting anchor tags and creates them dyanmically based on text
         for dl_link in dl_links:
             url = dl_link.get("href").strip("\\\"")
             slug = dl_link.text.lower().replace(" ", "_")
-            setattr(ep_data, slug, url)
+
+            # check if it's a defined property on the dataclass
+            if slug in ep_data.__match_args__:
+                setattr(ep_data, slug, url)
+                continue
+            logger.error(f"New field {slug} (value of: {url}) is not already explicitly defined in the Jbd_Episode_Record")
     except Exception as e:
         logger.exception(
             "Failed to parse direct links for episode.\n"
