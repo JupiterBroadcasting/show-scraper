@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 from uuid import UUID
 from pydantic.dataclasses import dataclass as py_dataclass
 from pydantic import AnyHttpUrl, BaseModel, Extra, Field, HttpUrl, PositiveInt
