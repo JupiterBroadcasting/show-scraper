@@ -2,11 +2,23 @@ from datetime import datetime, time
 import json
 from textwrap import indent
 from typing import Dict, List, Literal, Optional
+from uuid import UUID
 from pydantic import BaseModel, AnyHttpUrl, HttpUrl, Json, root_validator, validator
+from pydantic.dataclasses import dataclass as py_dataclass
 
 
+# FIXME: make this a class variable under Episode
+# https://github.com/samuelcolvin/pydantic/issues/184#issuecomment-392566460
 VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
 
+
+# for example:
+# https://feeds.fireside.fm/selfhosted/json/episodes/a9a4f084-47ba-490c-a65b-cef65719182d/chapters
+@py_dataclass
+class FsChapters:
+    """
+    """
+    pass
 
 class Episode(BaseModel):
 
@@ -31,7 +43,7 @@ class Episode(BaseModel):
 
     # Episode GUID
     # Source: Fireside json api: `items[n].id`
-    episode_guid: str
+    episode_guid: UUID
 
     # Episode number again, but specifically for Hugo.
     # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
@@ -89,6 +101,8 @@ class Episode(BaseModel):
     # Chapters JSON in a format defined by podcastingindex.org:
     #   https://github.com/Podcastindex-org/podcast-namespace/blob/main/chapters/jsonChapters.md
     # Source: RSS feed from fireside
+    # TODO: implement
+    # podcast_chapters: Optional[FsChapters]
     podcast_chapters: Optional[Dict]
 
     # Has different tracking url than `podcast_file`

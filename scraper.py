@@ -4,12 +4,12 @@ import concurrent.futures
 import json
 import os
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
 import html2text
-from pydantic import HttpUrl
+from pydantic import HttpUrl, PositiveInt
 from pydantic.json import pydantic_encoder
 import requests
 import yaml
@@ -18,6 +18,7 @@ from bs4.element import Tag
 from loguru import logger
 from models import Episode, Person, Sponsor
 from models.config import ConfigData, ShowDetails
+from models.fireside import FsShowItem, FsShowItemAttachment, ShowJson
 from models.misc import Jbd_Episode_Record
 from models.person import PersonType
 
@@ -84,8 +85,9 @@ def get_list(soup: BeautifulSoup,
     return pre_element.find_next_sibling(sibling_tag)
 
 
-def seconds_2_hhmmss_str(seconds: str | int) -> str:
-    seconds = int(seconds)
+# from the FsShowItemAttachment.duration_in_seconds property
+def seconds_2_hhmmss_str(seconds: PositiveInt) -> str:
+    seconds = seconds
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     return f"{hours:02}:{minutes:02}:{seconds:02}"
@@ -105,16 +107,16 @@ def get_plain_title(title: str) -> str:
     return title.strip()
 
 
-def create_episode(api_episode,
+def create_episode(api_episode: FsShowItem,
                    show_config: ShowDetails,
                    show_slug: str,
                    output_dir: str):
     try:
         # RANT: What kind of API doesn't give the episode number?!
-        episode_number = int(api_episode["url"].split("/")[-1])
+        episode_number = int(api_episode.url.path.split("/")[-1])
         episode_number_padded = f"{episode_number:04}"
 
-        episode_guid = api_episode["id"]
+        episode_guid = api_episode.id
 
         output_file = f"{output_dir}/{episode_number_padded}.md"
 
@@ -126,13 +128,13 @@ def create_episode(api_episode,
 
         podcast_chapters = get_podcast_chapters(api_episode, show_config)
 
-        publish_date = api_episode['date_published']
+        publish_date = api_episode.date_published
 
-        api_soup = BeautifulSoup(api_episode["content_html"], "html.parser")
+        api_soup = BeautifulSoup(api_episode.content_html, "html.parser")
         page_soup = BeautifulSoup(requests.get(
-            api_episode["url"]).content, "html.parser")
+            api_episode.url).content, "html.parser")
 
-        blurb = api_episode["summary"]
+        blurb = api_episode.summary
 
         sponsors = parse_sponsors(
             api_soup, page_soup, show_config.acronym, episode_number)
@@ -152,7 +154,7 @@ def create_episode(api_episode,
         hosts = parse_hosts_in_ep(page_soup, show_config, episode_number)
         guests = parse_guests_in_ep(page_soup, show_config, episode_number)
 
-        show_attachment = api_episode["attachments"][0]
+        show_attachment = api_episode.attachments[0]
 
         # not setting this to empty values (which is what .get does with {} as the second parameter)
         #   so informed about issues like GH issue 16
@@ -175,7 +177,7 @@ def create_episode(api_episode,
                              f"error: {errorz}")
             jb_ep_data = Jbd_Episode_Record()
             jb_url = None
-            # raise errorz
+
         if jb_url:
             jb_url = urlparse(jb_url).path
 
@@ -186,16 +188,16 @@ def create_episode(api_episode,
                 episode=episode_number,
                 episode_padded=episode_number_padded,
                 episode_guid=episode_guid,
-                title=get_plain_title(api_episode["title"]),
+                title=get_plain_title(api_episode.title),
                 description=blurb,
                 date=publish_date,
                 tags=tags,
                 hosts=hosts,
                 guests=guests,
                 sponsors=sponsors,
-                podcast_duration=seconds_2_hhmmss_str(show_attachment['duration_in_seconds']),
-                podcast_file=show_attachment["url"],
-                podcast_bytes=show_attachment.get("size_in_bytes"),
+                podcast_duration=seconds_2_hhmmss_str(show_attachment.duration_in_seconds),
+                podcast_file=show_attachment.url,
+                podcast_bytes=show_attachment.size_in_bytes,
                 podcast_chapters=podcast_chapters,
                 podcast_alt_file=jb_ep_data.mp3_audio,
                 podcast_ogg_file=jb_ep_data.ogg_audio,
@@ -204,7 +206,7 @@ def create_episode(api_episode,
                 video_mobile_file=jb_ep_data.mobile_video,
                 youtube_link=jb_ep_data.youtube,
                 jb_url=jb_url,
-                fireside_url=urlparse(api_episode["url"]).path,
+                fireside_url=api_episode.url.path,
                 episode_links=links
             )        
 
@@ -212,17 +214,18 @@ def create_episode(api_episode,
 
     except Exception as e:
         logger.exception("Failed to create an episode from url!\n"
-                         f"episode_url: {api_episode.get('url')}")
+                         f"episode_url: {api_episode.url}")
 
-def get_podcast_chapters(api_episode, show_config: ShowDetails):
+def get_podcast_chapters(api_episode: FsShowItem, show_config: ShowDetails) -> Optional[Dict]:
     try:
         chapters_url = CHAPTERS_URL_TPL.format(
                 show=show_config.fireside_slug,
-                ep_id=api_episode["id"])
+                ep_id=api_episode.id)
 
         resp = requests.get(chapters_url)
         resp.raise_for_status()
 
+        # TODO: use pydantic to validate
         return resp.json()
     except requests.HTTPError:
         # No chapters
@@ -239,7 +242,7 @@ def save_file(file_path, content, mode="w", overwrite=False):
     logger.info(f"Saved file: {file_path}")
     return True
 
-def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep):
+def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep: int):
     show = show_config.acronym
     base_url = show_config.fireside_url
 
@@ -288,7 +291,7 @@ def parse_guests_in_ep(page_soup, show_config: ShowDetails, ep):
     return episode_guests
 
 
-def parse_sponsors(api_soup, page_soup, show, ep):
+def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str, ep: int) -> List[str]:
     # Get only the links of all the sponsors
     sponsors_ul = get_list(api_soup, "Sponsored By:")
     if not sponsors_ul:
@@ -303,6 +306,7 @@ def parse_sponsors(api_soup, page_soup, show, ep):
     sponsors = []
     for sl in sponsors_links:
         try:
+            # FIXME: eventually get around to do a more "official" solution
             # Very ugly but works. The goal is to get the hostname of the sponsor
             # link without the subdomain. It would fail on tlds like "co.uk". but I
             # don't think JB had any sponsors like that so it's fine.
@@ -786,10 +790,12 @@ def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
         output_dir = os.path.join(
             DATA_ROOT_DIR, "content", "show", show_slug)
 
-        api_data = requests.get(
-            show_config.fireside_url + "/json").json()
+        api_data = ShowJson(
+            **requests.get( show_config.fireside_url + "/json")
+                .json()
+        )
 
-        for idx, api_episode in enumerate(api_data["items"]):
+        for idx, api_episode in enumerate(api_data.items):
 
             if IS_LATEST_ONLY and idx >= LATEST_ONLY_EP_LIMIT:
                 logger.debug(f"Limiting scraping to only {LATEST_ONLY_EP_LIMIT} most"
