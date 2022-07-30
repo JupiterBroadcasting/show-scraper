@@ -21,7 +21,7 @@ config = {}
 # Limit scraping only the latest episodes of the show (executes the script much faster!)
 # Used with GitHub Actions to run on a daily schedule and scrape the latest episodes.
 IS_LATEST_ONLY = bool(os.getenv("LATEST_ONLY", False))
-LATEST_ONLY_EP_LIMIT = 1
+LATEST_ONLY_EP_LIMIT = 5
 
 # Root dir where all the scraped data should to saved to.
 # The data save to this dir follows the directory structure of the Hugo files relative
@@ -523,7 +523,11 @@ def scrape_hosts_and_guests(shows, executor):
     # Save json files asyncronously
     futures = []
     for username, person in people.items():
-        futures.append(executor.submit(save_json_file, f"{username}.json", person.dict(), people_dir))
+        futures.append(
+            executor.submit(save_json_file,
+                            f"{username}.json", person.dict(),
+                            people_dir, overwrite=True)
+        )
 
     # Drain all threads
     for future in concurrent.futures.as_completed(futures):
@@ -715,7 +719,8 @@ def save_sponsors(executor):
     futures = []
     for filename, sponsor in SPONSORS.items():
         futures.append(executor.submit(
-        save_json_file, filename, sponsor.dict(), sponsors_dir))
+            save_json_file,
+            filename, sponsor.dict(), sponsors_dir, overwrite=True))
 
     # Drain all threads
     for future in concurrent.futures.as_completed(futures):
