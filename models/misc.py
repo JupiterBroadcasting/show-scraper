@@ -19,3 +19,4 @@ class Jbd_Episode_Record:
     hd_video: Optional[HttpUrl] = None
     mobile_video: Optional[HttpUrl] = None
     youtube: Optional[HttpUrl] = None
+    torrent: Optional[HttpUrl] = None
