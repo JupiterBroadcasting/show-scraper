@@ -35,9 +35,30 @@ shows:
     jb_url: https://www.jupiterbroadcasting.com/show/office
     acronym: OH
     name: Office Hours
-# Map usernames of hosts/guests as they appear in fireside to how we want to save them
+# Map usernames of hosts/guests as they appear in fireside to how we want to 
+# save them in the new website. This also helps to avoid duplicates
 usernames_map:
   chrislas: chris
   wespayne: wes
   alexktz: alex
   brentgervais: brent
+  mike: michael
+  dani: danielle-fore
+  daniellefore: danielle-fore
+  drewdevore: drew-devore
+  drewdvore: drew-devore
+  drewofdoom: drew-devore
+  jilllinuxgirl: jill-linuxgirl
+  jimsalter: jim-salter
+  philipmuller: philip-muller
+  alanpope: popey
+  martinwimpress: wimpy
+  stuartlangridge: stuart-langridge
+
+# List of any data filenames (sponsors or people) which shouldn't be 
+# overriden when scraping latest shows. Any file that was manually editer should
+# be added here.
+data_dont_override:
+  - brent.json
+  - chris.json
+  - wes.json

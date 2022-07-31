@@ -305,6 +305,10 @@ def parse_sponsors(api_soup, page_soup, show, ep):
 
 
 def save_json_file(filename, json_obj, dest_dir, overwrite=False):
+    data_dont_override = set(config.get("data_dont_override"))
+    if IS_LATEST_ONLY and filename in data_dont_override:
+        logger.warning(f"Filename `{filename}` found in `data_dont_override`! Will not save to it.")
+        overwrite = False
     file_path = os.path.join(dest_dir, filename)
     save_file(file_path, json.dumps(json_obj, indent=4), overwrite=overwrite)
 
@@ -626,12 +630,12 @@ def parse_person_page(html_page):
     page_soup = BeautifulSoup(html_page, "html.parser")
     page_data = {}
 
-            # Parse bio
+    # Parse bio
     bio = page_soup.find("section")
     if bio:
         page_data["bio"] = bio.text.strip()
 
-            # Parse social links
+    # Parse social links
     nav = page_soup.find("nav", class_="links")
     if nav:
         links = nav.find_all("a")
