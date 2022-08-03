@@ -2,13 +2,14 @@
 
 import concurrent.futures
 import json
+from logging import DEBUG, INFO
 import os
 import sys
 from typing import Dict, List, Optional, Tuple
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
-import html2text
+from html2text import html2text
 from pydantic import HttpUrl, PositiveInt
 from pydantic.json import pydantic_encoder
 import requests
@@ -18,6 +19,7 @@ from bs4.element import Tag
 from loguru import logger
 from models import Episode, Person, Sponsor
 from models.config import ConfigData, ShowDetails
+from models.episode import Chapters
 from models.fireside import FsShowItem, FsShowItemAttachment, ShowJson
 from models.misc import Jb_Episode_Record
 from models.person import PersonType
@@ -140,7 +142,7 @@ def create_episode(api_episode: FsShowItem,
             api_soup, page_soup, show_config.acronym, episode_number)
 
         links_list = get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")
-        links = html2text.html2text(str(links_list)) if links_list else None
+        links = html2text(str(links_list)) if links_list else None
 
         tags = []
         for link in page_soup.find_all("a", class_="tag"):
@@ -171,11 +173,11 @@ def create_episode(api_episode: FsShowItem,
             #   deosn't get used in the new website.
             #   this means that we're just pulling info directly
             #   from fireside and have no direct downloads
-            logger.warning("Show won't have direct download links!\n")
-            logger.debug("Show won't have direct download links!\n"
-                             f"episode_url: {api_episode.url}\n"
-                             f"data we have: {jb_ep_data}\n"
-                             f"error: {errorz}")
+            logger.warning("Show won't have direct download links!\n"
+                            f"episode_url: {api_episode.url}\n")
+            if LOG_LVL == DEBUG:
+                logger.exception(f"data we have: {jb_ep_data}\n"
+                                 f"error: {errorz}")
             jb_ep_data = Jb_Episode_Record()
             jb_url = None
 
@@ -217,7 +219,7 @@ def create_episode(api_episode: FsShowItem,
         logger.exception("Failed to create an episode from url!\n"
                          f"episode_url: {api_episode.url}")
 
-def get_podcast_chapters(api_episode: FsShowItem, show_config: ShowDetails) -> Optional[Dict]:
+def get_podcast_chapters(api_episode: FsShowItem, show_config: ShowDetails) -> Optional[Chapters]:
     try:
         chapters_url = CHAPTERS_URL_TPL.format(
                 show=show_config.fireside_slug,
@@ -227,7 +229,7 @@ def get_podcast_chapters(api_episode: FsShowItem, show_config: ShowDetails) -> O
         resp.raise_for_status()
 
         # TODO: use pydantic to validate
-        return resp.json()
+        return Chapters(**resp.json())
     except requests.HTTPError:
         # No chapters
         pass
@@ -848,7 +850,7 @@ def main():
 
 
 if __name__ == "__main__":
-    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Defaults to INFO, 10 for debug
+    LOG_LVL = int(os.getenv("LOG_LVL", INFO))  # Defaults to INFO, 10 for debug
     logger.remove()  # Remove default logger
     logger.add(sys.stderr, level=LOG_LVL)
 
