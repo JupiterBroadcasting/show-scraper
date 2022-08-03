@@ -12,6 +12,8 @@ venv.bak/
 # Scraped data folder
 data/
 
+# vagrant
+.vagrant/
 
 # Other
 *.log
