@@ -25,35 +25,29 @@ make scrape
 
 ### Setup python venv
 
-Create a python virtual environment:
+Install [pipenv](https://pipenv.pypa.io/en/latest/basics/):
 
 ```
-python3 -m venv venv
+pip3 install pipenv
 ```
 
 
-Activate the venv:
+Install all the dependencies
 
 ```
-source venv/bin/activate
+pipenv install -d
 ```
 
-or use any other `activate` file that would match your shell, for example if you're using `fish`:
+Activate your pipenv shell:
 
 ```
-source venv/bin/activate.fish
-```
-
-Then install the dependecies:
-
-```
-pip install -r requirements.txt
+pipenv shell
 ```
 
 
 ### Run
 
-Make sure you have activated the virtual envirnoment, running `which python` should point to the binary inside the `venv` dir.
+Make sure you have activated the pipenv virtual envirnoment, running `which python` should point to the binary inside the pipenv `venv` dir.
 
 
 Run the script from the root dir:
@@ -74,4 +68,3 @@ Example:
 ```
 LOG_LVL=1 LATEST_ONLY=1 python scraper.py
 ```
-
