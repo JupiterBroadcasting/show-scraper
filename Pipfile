@@ -11,6 +11,8 @@ pyyaml = "*"
 python-dateutil = "*"
 loguru = "*"
 pydantic = "*"
+python-frontmatter = "*"
+pydantic-yaml = "*"
 
 [dev-packages]
 black = "*"

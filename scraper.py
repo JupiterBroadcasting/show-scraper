@@ -5,7 +5,7 @@ import json
 from logging import DEBUG, INFO
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
@@ -23,6 +23,8 @@ from models.episode import Chapters
 from models.fireside import FsShowItem, FsShowItemAttachment, ShowJson
 from models.misc import Jb_Episode_Record
 from models.person import PersonType
+from frontmatter import Post, dumps as f_dumps
+from pydantic_yaml import YamlModelMixin
 
 
 config = {}
@@ -234,7 +236,7 @@ def get_podcast_chapters(api_episode: FsShowItem, show_config: ShowDetails) -> O
         # No chapters
         pass
 
-def save_file(file_path, content, mode="w", overwrite=False):
+def save_file(file_path: str, content: Union[bytes,str], mode: str = "w", overwrite: bool = False) -> bool:
     if not overwrite and os.path.exists(file_path):
         logger.warning(f"Skipping saving `{file_path}` as it already exists")
         return False
@@ -317,7 +319,7 @@ def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str,
             shortname = f"{sponsor_slug}-{show}".lower()
             sponsors.append(shortname)
 
-            filename = f"{shortname}.json"
+            filename = f"{shortname}.md"
 
             # Find the <a> element on the page with the link
             sponsor_a = page_soup.find(
@@ -339,13 +341,13 @@ def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str,
     return sponsors
 
 
-def save_json_file(filename, json_obj, dest_dir, overwrite=False):
+def save_post_obj_file(filename: str, post_obj: Post, dest_dir: str, overwrite: bool = False) -> None:
     data_dont_override = set(config.get("data_dont_override"))
     if IS_LATEST_ONLY and filename in data_dont_override:
         logger.warning(f"Filename `{filename}` found in `data_dont_override`! Will not save to it.")
         overwrite = False
     file_path = os.path.join(dest_dir, filename)
-    save_file(file_path, json.dumps(json_obj, indent=4), overwrite=overwrite)
+    save_file(file_path, f_dumps(post_obj), overwrite=overwrite)
 
 
 def get_username_from_url(url):
@@ -614,7 +616,7 @@ def jb_get_last_page_of_show(show_base_url) -> int:
 
 def scrape_hosts_and_guests(shows: Dict[str, ShowDetails] , executor):
     logger.info(">>> Scraping hosts and guests from Fireside...")
-    people_dir = os.path.join(DATA_ROOT_DIR, "data", "people")
+    people_dir = os.path.join(DATA_ROOT_DIR, "content", "people")
 
     guests = scrape_show_guests(shows, executor)
     hosts = scrape_show_hosts(shows, executor)
@@ -625,8 +627,8 @@ def scrape_hosts_and_guests(shows: Dict[str, ShowDetails] , executor):
     futures = []
     for username, person in people.items():
         futures.append(
-            executor.submit(save_json_file,
-                            f"{username}.json", person.dict(),
+            executor.submit(save_post_obj_file,
+                            f"{username}.md", Post('', **person.dict()),
                             people_dir, overwrite=True)
         )
 
@@ -819,12 +821,12 @@ def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
 
 def save_sponsors(executor):
     logger.info(">>> Saving the sponsors found in episodes from Fireside...")
-    sponsors_dir = os.path.join(DATA_ROOT_DIR, "data", "sponsors")
+    sponsors_dir = os.path.join(DATA_ROOT_DIR, "content", "sponsors")
     futures = []
     for filename, sponsor in SPONSORS.items():
         futures.append(executor.submit(
-            save_json_file,
-            filename, sponsor.dict(), sponsors_dir, overwrite=True))
+            save_post_obj_file,
+            filename, Post('',**sponsor.dict()), sponsors_dir, overwrite=True))
 
     # Drain all threads
     for future in concurrent.futures.as_completed(futures):
