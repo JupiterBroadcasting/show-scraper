@@ -146,7 +146,7 @@ def create_episode(api_episode: FsShowItem,
         for link in page_soup.find_all("a", class_="tag"):
             _tag = link.get_text().strip()
             # escape inner quotes (occurs in coderradio 434)
-            _tag = _tag.replace("\"", "\\\"")
+            _tag = _tag.replace('"', r'\"')
             tags.append(_tag)
 
         tags = sorted(tags)
@@ -171,8 +171,9 @@ def create_episode(api_episode: FsShowItem,
             #   deosn't get used in the new website.
             #   this means that we're just pulling info directly
             #   from fireside and have no direct downloads
-            logger.exception("Show won't have direct download links!\n"
-                             f"episode_url: {api_episode.get('url')}\n"
+            logger.warning("Show won't have direct download links!\n")
+            logger.debug("Show won't have direct download links!\n"
+                             f"episode_url: {api_episode.url}\n"
                              f"data we have: {jb_ep_data}\n"
                              f"error: {errorz}")
             jb_ep_data = Jbd_Episode_Record()
@@ -264,7 +265,7 @@ def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep: in
     return episode_hosts
 
 
-def parse_guests_in_ep(page_soup, show_config: ShowDetails, ep):
+def parse_guests_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep: int):
     show = show_config.acronym
     base_url = show_config.fireside_url
 
