@@ -3,7 +3,7 @@ import json
 from textwrap import indent
 from typing import Dict, List, Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel, AnyHttpUrl, HttpUrl, conint, constr, root_validator, validator
+from pydantic import BaseModel, AnyHttpUrl, HttpUrl, NonNegativeInt, PositiveInt, constr, root_validator, validator
 from pydantic.dataclasses import dataclass as py_dataclass
 
 
@@ -28,7 +28,7 @@ class Chapter:
     """
     Used to parse the individual chapter markers from fireside
     """
-    startTime: conint(ge=0, strict=True)
+    startTime: NonNegativeInt
     title: Optional[str] = None
     img: Optional[HttpUrl] = None
     url: Optional[HttpUrl] = None
@@ -64,17 +64,17 @@ class Episode(BaseModel):
     draft: bool = False
 
     # Source: defined in `config.yml` (the key of each show)
-    show_slug: str
+    show_slug: constr(strip_whitespace=True, to_lower=True, strict=True)
 
     # Source: defined in `config.yml` as `name`
     show_name: str
 
     # Episode number
     # Source: fireside website of each show
-    episode: int
+    episode: NonNegativeInt
 
     # Episode number padded with 3 zeros. Generated from `episode`
-    episode_padded: str
+    episode_padded: constr(min_length=4, regex=r'[0-9]+')
 
     # Episode GUID
     # Source: Fireside json api: `items[n].id`
@@ -87,7 +87,12 @@ class Episode(BaseModel):
     # override it:
     #   https://gohugo.io/content-management/organization/#slug
     # Source: Generated using `episode` above
-    slug: str = ""
+    # re explained: https://regex101.com/r/tQhfM1/
+    slug: constr(regex=r'(^0$|(?:[1-9])[1-9]+$)') = ""
+    # TODO: would love to make ^ (and associated other episode variations)
+    #   into a property which pulls from .episode, but
+    #   unfortunetly it won't serialize without this...
+    # https://github.com/samuelcolvin/pydantic/issues/935
 
     # Source: fireside website of each show
     title: str
@@ -131,13 +136,11 @@ class Episode(BaseModel):
 
     # Number of bytes of the `podcast_file` above (from fireside)
     # Source: fireside
-    podcast_bytes: int
+    podcast_bytes: PositiveInt
 
     # Chapters JSON in a format defined by podcastingindex.org:
     #   https://github.com/Podcastindex-org/podcast-namespace/blob/main/chapters/jsonChapters.md
     # Source: RSS feed from fireside
-    # TODO: implement
-    # podcast_chapters: Optional[FsChapters]
     podcast_chapters: Optional[Chapters]
 
     # Has different tracking url than `podcast_file`
