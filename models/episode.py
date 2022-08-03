@@ -3,7 +3,7 @@ import json
 from textwrap import indent
 from typing import Dict, List, Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel, AnyHttpUrl, HttpUrl, Json, root_validator, validator
+from pydantic import BaseModel, AnyHttpUrl, HttpUrl, conint, constr, root_validator, validator
 from pydantic.dataclasses import dataclass as py_dataclass
 
 
@@ -11,14 +11,49 @@ from pydantic.dataclasses import dataclass as py_dataclass
 # https://github.com/samuelcolvin/pydantic/issues/184#issuecomment-392566460
 VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
 
+#########################
+## Podcasting namespace chapters
+# https://github.com/Podcastindex-org/podcast-namespace/blob/efa072b0d1c71ab9bacb082406b8f5324a82f2c3/chapters/jsonChapters.md#chapters-object
+@py_dataclass
+class Location:
+    name: str
+    geo: str
+    osm: Optional[AnyHttpUrl] = None
+    """
+    Open Street maps link
+    """
+
+@py_dataclass
+class Chapter:
+    """
+    Used to parse the individual chapter markers from fireside
+    """
+    startTime: conint(ge=0, strict=True)
+    title: Optional[str] = None
+    img: Optional[HttpUrl] = None
+    url: Optional[HttpUrl] = None
+    toc: Optional[bool] = None
+    endTime: Optional[float] = None
+    location: Optional[Location] = None
 
 # for example:
 # https://feeds.fireside.fm/selfhosted/json/episodes/a9a4f084-47ba-490c-a65b-cef65719182d/chapters
 @py_dataclass
-class FsChapters:
+class Chapters:
     """
+    Used to parse the fireside chapters api endpoint:
+    https://feeds.fireside.fm/{show}/json/episodes/{ep_uuid}/chapters
     """
-    pass
+    # semantic versioning regex: https://ihateregex.io/expr/semver/
+    version: constr(regex=r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$')
+    chapters: List[Chapter]
+    author: Optional[str] = None
+    title: Optional[str] = None
+    podcastName: Optional[str] = None
+    description: Optional[str] = None
+    fileName: Optional[str] = None
+    waypoints: Optional[bool] = None
+#########################
 
 class Episode(BaseModel):
 
@@ -103,7 +138,7 @@ class Episode(BaseModel):
     # Source: RSS feed from fireside
     # TODO: implement
     # podcast_chapters: Optional[FsChapters]
-    podcast_chapters: Optional[Dict]
+    podcast_chapters: Optional[Chapters]
 
     # Has different tracking url than `podcast_file`
     # Example:

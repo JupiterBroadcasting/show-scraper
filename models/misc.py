@@ -4,7 +4,7 @@ from pydantic import AnyHttpUrl, HttpUrl
 from pydantic.dataclasses import dataclass as py_dataclass
 
 @py_dataclass
-class Jbd_Episode_Record:
+class Jb_Episode_Record:
     """
     JBDATA_Episode_Record
     for the JB_DATA dictionary of {<show>:{<episode_number>:{<this_info>}}}
@@ -20,3 +20,4 @@ class Jbd_Episode_Record:
     mobile_video: Optional[HttpUrl] = None
     youtube: Optional[HttpUrl] = None
     torrent: Optional[HttpUrl] = None
+    hd_torrent: Optional[HttpUrl] = None

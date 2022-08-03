@@ -19,7 +19,7 @@ from loguru import logger
 from models import Episode, Person, Sponsor
 from models.config import ConfigData, ShowDetails
 from models.fireside import FsShowItem, FsShowItemAttachment, ShowJson
-from models.misc import Jbd_Episode_Record
+from models.misc import Jb_Episode_Record
 from models.person import PersonType
 
 
@@ -60,7 +60,7 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 #     "show_slug_2": { ... }
 # }
 JB_DATA = {}
-JB_DATA: Dict[str, Dict[int, Jbd_Episode_Record]]
+JB_DATA: Dict[str, Dict[int, Jb_Episode_Record]]
 
 CHAPTERS_URL_TPL = "https://feeds.fireside.fm/{show}/json/episodes/{ep_id}/chapters"
 
@@ -160,7 +160,7 @@ def create_episode(api_episode: FsShowItem,
         #   so informed about issues like GH issue 16
         jb_ep_data = JB_DATA.get(show_slug).get(episode_number)
         # logger.debug(f"{episode_number} jb_ep_data: {jb_ep_data}")
-        jb_ep_data: Jbd_Episode_Record
+        jb_ep_data: Jb_Episode_Record
         # TODO: handle this use case:
         # https://github.com/JupiterBroadcasting/show-scraper/issues/16#issuecomment-1196751641
         try:
@@ -176,7 +176,7 @@ def create_episode(api_episode: FsShowItem,
                              f"episode_url: {api_episode.url}\n"
                              f"data we have: {jb_ep_data}\n"
                              f"error: {errorz}")
-            jb_ep_data = Jbd_Episode_Record()
+            jb_ep_data = Jb_Episode_Record()
             jb_url = None
 
         if jb_url:
@@ -435,7 +435,7 @@ def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     for future in concurrent.futures.as_completed(futures):
         page_content, ep_data, show, ep = future.result()
         page_content: requests.Response
-        ep_data: Jbd_Episode_Record
+        ep_data: Jb_Episode_Record
         show: str # episode slug
         ep: int # episode number
 
@@ -445,14 +445,14 @@ def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     # save_json_file("jb_all_shows_links.json", JB_DATA, DATA_ROOT_DIR)
     logger.success(">>> Finished scraping data from jupiterbroadcasting.com")
 
-def jb_get_ep_page_content(page_url: HttpUrl, ep_data: Jbd_Episode_Record, show: str, ep: int)-> Tuple[requests.Response, Dict, str, int]:
+def jb_get_ep_page_content(page_url: HttpUrl, ep_data: Jb_Episode_Record, show: str, ep: int)-> Tuple[requests.Response, Dict, str, int]:
     """
     returns a tuple with the page's content, Jbd_Episode_Record, show slug, and episode number
     """
     resp = requests.get(page_url)
     return resp, ep_data, show, ep
 
-def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_data: Jbd_Episode_Record, show: str, ep: int) -> None:
+def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_data: Jb_Episode_Record, show: str, ep: int) -> None:
     """
     this populates the rest of the Jbd_Episode_Record object with direct
     download links to various services (YouTube, OGG audio, etc..).
@@ -571,7 +571,7 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
                 if ep_num in show_data.keys():
                     raise ValueError(f"There is already an existing show for episode number: {ep_num}\nWhich is: {show_data[ep_num]}\nCurrent attempted info: {item.contents}\nAll current info: {JB_DATA}")
 
-                show_data.update({ep_num: Jbd_Episode_Record(jb_url=link_href)})
+                show_data.update({ep_num: Jb_Episode_Record(jb_url=link_href)})
             except Exception as e:
                 logger.exception(
                     "Failed to get episode page link and number from JB site.\n"
