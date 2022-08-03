@@ -860,5 +860,4 @@ if __name__ == "__main__":
     logger.info("🚀🚀🚀 SCRAPER STARTED! 🚀🚀🚀")
     main()
     logger.success("🔥🔥🔥 ALL DONE :) 🔥🔥🔥\n\n")
-    # logger.debug(json.dumps(JB_DATA, default=pydantic_encoder))
     exit(0)
