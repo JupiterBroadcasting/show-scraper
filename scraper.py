@@ -24,6 +24,7 @@ from models.fireside import FsShowItem, FsShowItemAttachment, ShowJson
 from models.misc import Jb_Episode_Record
 from models.person import PersonType
 from frontmatter import Post, dumps as f_dumps
+# DO NOT REMOVE, even though not used. (JupiterBroadcasting/show-scraper #21)
 from pydantic_yaml import YamlModelMixin
 
 
