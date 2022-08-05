@@ -1,64 +1,31 @@
 shows:
-  self-hosted:
-    fireside_url: https://selfhosted.show
-    fireside_slug: selfhosted
-    jb_url: https://www.jupiterbroadcasting.com/show/self-hosted
-    acronym: SSH
-    name: Self-Hosted
-  coder-radio:
-    fireside_url: https://coder.show
-    fireside_slug: coderradio
-    jb_url: https://www.jupiterbroadcasting.com/show/coderradio
-    acronym: CR
-    name: Coder Radio
-  linux-action-news:
-    fireside_url: https://linuxactionnews.com
-    fireside_slug: linuxactionnews
-    jb_url: https://www.jupiterbroadcasting.com/show/linux-action-news
-    acronym: LAN
-    name: Linux Action News
-  linux-unplugged:
-    fireside_url: https://linuxunplugged.com
-    fireside_slug: linuxunplugged
-    jb_url: https://www.jupiterbroadcasting.com/show/linuxun
-    acronym: LUP
-    name: LINUX Unplugged
-  jupiter-extras:
-    fireside_url: https://extras.show
-    fireside_slug: extras
-    jb_url: https://www.jupiterbroadcasting.com/show/extras
-    acronym: JE
-    name: Jupiter EXTRAS
+  # self-hosted:
+  #   name: Self-Hosted
+  #   rss_url: https://selfhosted.show/rss
+  #   rss_src: Fireside
+  #   jb_url: https://www.jupiterbroadcasting.com/show/self-hosted
+  # coder-radio:
+  #   name: Coder Radio
+  #   rss_url: https://coder.show/rss
+  #   rss_src: Fireside
+  #   jb_url: https://www.jupiterbroadcasting.com/show/coderradio
+  # linux-action-news:
+  #   name: Linux Action News
+  #   rss_url: https://linuxactionnews.com/rss
+  #   rss_src: Fireside
+  #   jb_url: https://www.jupiterbroadcasting.com/show/linux-action-news
+  # linux-unplugged:
+  #   name: LINUX Unplugged
+  #   rss_url: https://linuxunplugged.com/rss
+  #   rss_src: Fireside
+  #   jb_url: https://www.jupiterbroadcasting.com/show/linuxun
+  # jupiter-extras:
+  #   name: Jupiter EXTRAS
+  #   rss_url: https://extras.show/rss
+  #   rss_src: Fireside
+  #   jb_url: https://www.jupiterbroadcasting.com/show/extras
   office-hours:
-    fireside_url: https://www.officehours.hair
-    fireside_slug: office
-    jb_url: https://www.jupiterbroadcasting.com/show/office
-    acronym: OH
     name: Office Hours
-# Map usernames of hosts/guests as they appear in fireside to how we want to 
-# save them in the new website. This also helps to avoid duplicates
-usernames_map:
-  chrislas: chris
-  wespayne: wes
-  alexktz: alex
-  brentgervais: brent
-  mike: michael
-  dani: danielle-fore
-  daniellefore: danielle-fore
-  drewdevore: drew-devore
-  drewdvore: drew-devore
-  drewofdoom: drew-devore
-  jilllinuxgirl: jill-linuxgirl
-  jimsalter: jim-salter
-  philipmuller: philip-muller
-  alanpope: popey
-  martinwimpress: wimpy
-  stuartlangridge: stuart-langridge
-
-# List of any data filenames (sponsors or people) which shouldn't be 
-# overriden when scraping latest shows. Any file that was manually editer should
-# be added here.
-data_dont_override:
-  - brent.json
-  - chris.json
-  - wes.json
+    rss_url: https://www.officehours.hair/rss
+    rss_src: Fireside
+    jb_url: https://www.jupiterbroadcasting.com/show/office

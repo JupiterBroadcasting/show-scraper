@@ -1,7 +1,9 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, HttpUrl, root_validator
+
+from pydantic import BaseModel, HttpUrl
 
 PersonType = Literal["host", "guest"]
+
 
 class Person(BaseModel):
 
@@ -17,6 +19,5 @@ class Person(BaseModel):
     instagram: Optional[HttpUrl]
     gplus: Optional[HttpUrl]
     youtube: Optional[HttpUrl]
-
 
     # TODO validate social links domain names

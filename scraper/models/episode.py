@@ -1,11 +1,10 @@
-from datetime import datetime, time
 import json
-from textwrap import indent
+from datetime import datetime, time
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, AnyHttpUrl, HttpUrl, Json, root_validator, validator
 
+from pydantic import AnyHttpUrl, BaseModel, HttpUrl, root_validator, validator
 
-VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
+VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be", "www.youtu.be"}
 
 
 class Episode(BaseModel):
@@ -34,7 +33,7 @@ class Episode(BaseModel):
     episode_guid: str
 
     # Episode number again, but specifically for Hugo.
-    # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
+    # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no
     # zero padding in the link to the episdoe (e.g. `https://coder.show/42`).
     # Hugo will use the filename for the slug by default, unless this param is set to
     # override it:
@@ -140,16 +139,14 @@ class Episode(BaseModel):
 
     @classmethod
     def _generate_slug(cls, values):
-        """Set the episode number as the slug.
-        """
+        """Set the episode number as the slug."""
         epnum = values.get("episode")
         values["slug"] = str(epnum)
         return values
 
     @classmethod
     def _generate_categories(cls, values):
-        """Make sure the show name is in categories and is the first one.
-        """
+        """Make sure the show name is in categories and is the first one."""
         show_name = values.get("show_name")
 
         cats: List = values.get("categories", [])
@@ -161,7 +158,7 @@ class Episode(BaseModel):
     def _generate_header_image(cls, values):
         slug = values.get("show_slug")
         values["header_image"] = f"/images/shows/{slug}.png"
-    
+
     @classmethod
     def _delete_dup_links(cls, values):
         # podcast_alt_file from JB might have same link. If same - set to None
@@ -176,25 +173,36 @@ class Episode(BaseModel):
 
             if alt == file:
                 values["podcast_alt_file"] = None
-            
+
             return values
         except:
             print(json.dumps(values, indent=2))
 
-    @validator('youtube_link')
+    @validator("youtube_link")
     def check_youtube_link(cls, v):
         if v:
-            assert v.host in VALID_YOUTUBE_HOSTNAMES, f"host of the url must be one of {VALID_YOUTUBE_HOSTNAMES}, instead got {v.host}"
+            assert v.host in VALID_YOUTUBE_HOSTNAMES, (
+                f"host of the url must be one of {VALID_YOUTUBE_HOSTNAMES}, "
+                f"instead got {v.host}"
+            )
         return v
 
-    @validator('podcast_file', 'podcast_alt_file', 'podcast_ogg_file', 'video_file', 'video_hd_file', 'video_mobile_file', pre=True)
+    @validator(
+        "podcast_file",
+        "podcast_alt_file",
+        "podcast_ogg_file",
+        "video_file",
+        "video_hd_file",
+        "video_mobile_file",
+        pre=True,
+    )
     def remove_tracking(cls, v: Optional[str]):
         if not v:
             return v
 
         # Need this to add back the proper scheme later.
-        # Video files from scale engine don't load using https, might be the case with 
-        # other links.         
+        # Video files from scale engine don't load using https, might be the case with
+        # other links.
         scheme = "https://" if v.startswith("https://") else "http://"
 
         # Remove the scheme
@@ -202,13 +210,15 @@ class Episode(BaseModel):
 
         if v.startswith("www.podtrac.com/pts/redirect"):
             v = v.removeprefix("www.podtrac.com/pts/redirect")
-            # Remove the file ext part before with the first slash, e.g. ".mp3/" or ".ogg/"
-            v = v[v.find("/")+1:]
+            # Remove the file ext part before with the first slash,
+            # e.g. ".mp3/" or ".ogg/"
+            v = v[v.find("/") + 1 :]
 
         if v.startswith("chtbl.com/track/"):
             v = v.removeprefix("chtbl.com/track/")
-            v = v[v.find("/")+1:]  # remove the tracking + first slash ID e.g. "392D9/"
-        
+            # remove the tracking + first slash ID e.g. "392D9/"
+            v = v[v.find("/") + 1 :]
+
         # Add back scheme
         v = f"{scheme}{v}"
 
@@ -220,12 +230,9 @@ class Episode(BaseModel):
         v = v.removeprefix("https://")
         return v
 
-
-
     def get_hugo_md_file_content(self) -> str:
-        """Constructs and returns the content of the Hugo markdown file.
-        """
-        
+        """Constructs and returns the content of the Hugo markdown file."""
+
         content = self.json(exclude={"episode_links"}, indent=2)
         content += "\n"
 
@@ -233,7 +240,7 @@ class Episode(BaseModel):
             content += "\n\n"
             content += "### Episode Links\n\n"
             content += self.episode_links
-        
+
         content += "\n"  # Empty line
 
         return content
