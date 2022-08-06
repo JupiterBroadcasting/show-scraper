@@ -23,11 +23,11 @@ class YAMLBaseModel(BaseModel):
     ) -> str:
         """Generate a yaml representation of the model.
 
-        This uses the underlying `self.dict()` method of the Pydantic BaseModel, and
+        This uses the underlying `self.json()` method of the Pydantic BaseModel, and
         `yaml.dump()` from `PyYAML`.
         """
 
-        _dict = self.dict(
+        _json = self.json(
             include=include,
             exclude=exclude,
             by_alias=by_alias,
@@ -35,5 +35,6 @@ class YAMLBaseModel(BaseModel):
             exclude_defaults=exclude_defaults,
             exclude_none=exclude_none,
         )
-
-        return yaml.dump(_dict, default_flow_style=default_flow_style)
+        return yaml.dump(
+            yaml.load(_json, yaml.Loader), default_flow_style=default_flow_style
+        )
