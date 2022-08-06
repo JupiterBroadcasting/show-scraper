@@ -329,7 +329,7 @@ def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str,
                 SPONSORS.update({
                     filename: Sponsor(
                         shortname=shortname,
-                        name=sponsor_a.find("header").text.strip(),
+                        title=sponsor_a.find("header").text.strip(),
                         description=sponsor_a.find("p").text.strip(),
                         link=sl
                     )
