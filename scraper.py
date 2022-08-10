@@ -666,7 +666,7 @@ def scrape_show_hosts(shows: Dict[str, ShowDetails] , executor) -> Dict[str, Per
             avatar = save_avatar_img(avatar_url, username)
 
             append_person_to_dict("host", show_hosts, username, show_data.acronym,
-                                  name=name,
+                                  title=name,
                                   avatar="/"+avatar,
                                   avatar_small="/"+avatar_small,
                                   bio=bio,
@@ -705,7 +705,7 @@ def scrape_show_guests(shows: Dict[str, ShowDetails], executor) -> Dict[str, Per
             page_data = parse_person_page(html_page)
 
             append_person_to_dict("guest", show_guests, username, show_data.acronym,
-                                  name=name,
+                                  title=name,
                                   avatar="/"+avatar,
                                   avatar_small="/"+avatar_small,
                                   **page_data)

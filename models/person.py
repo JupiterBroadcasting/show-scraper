@@ -7,7 +7,7 @@ class Person(BaseModel):
 
     type: PersonType
     username: str  # Unique ID
-    name: str
+    title: str
     bio: Optional[str]
     avatar: Optional[str]
     avatar_small: Optional[str]
