@@ -4,6 +4,6 @@ from pydantic import BaseModel, HttpUrl, root_validator
 
 class Sponsor(BaseModel):
     shortname: str
-    name: str
+    title: str
     description: str
     link: HttpUrl

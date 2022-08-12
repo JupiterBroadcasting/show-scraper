@@ -2,11 +2,58 @@ from datetime import datetime, time
 import json
 from textwrap import indent
 from typing import Dict, List, Literal, Optional
-from pydantic import BaseModel, AnyHttpUrl, HttpUrl, Json, root_validator, validator
+from uuid import UUID
+from pydantic import BaseModel, AnyHttpUrl, HttpUrl, NonNegativeInt, PositiveInt, constr, root_validator, validator
+from pydantic.dataclasses import dataclass as py_dataclass
 
 
+# FIXME: make this a class variable under Episode
+# https://github.com/samuelcolvin/pydantic/issues/184#issuecomment-392566460
 VALID_YOUTUBE_HOSTNAMES = {"youtube.com", "www.youtube.com", "youtu.be",  "www.youtu.be"}
 
+#########################
+## Podcasting namespace chapters
+# https://github.com/Podcastindex-org/podcast-namespace/blob/efa072b0d1c71ab9bacb082406b8f5324a82f2c3/chapters/jsonChapters.md#chapters-object
+@py_dataclass
+class Location:
+    name: str
+    geo: str
+    osm: Optional[AnyHttpUrl] = None
+    """
+    Open Street maps link
+    """
+
+@py_dataclass
+class Chapter:
+    """
+    Used to parse the individual chapter markers from fireside
+    """
+    startTime: NonNegativeInt
+    title: Optional[str] = None
+    img: Optional[HttpUrl] = None
+    url: Optional[HttpUrl] = None
+    toc: Optional[bool] = None
+    endTime: Optional[float] = None
+    location: Optional[Location] = None
+
+# for example:
+# https://feeds.fireside.fm/selfhosted/json/episodes/a9a4f084-47ba-490c-a65b-cef65719182d/chapters
+@py_dataclass
+class Chapters:
+    """
+    Used to parse the fireside chapters api endpoint:
+    https://feeds.fireside.fm/{show}/json/episodes/{ep_uuid}/chapters
+    """
+    # semantic versioning regex: https://ihateregex.io/expr/semver/
+    version: constr(regex=r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$')
+    chapters: List[Chapter]
+    author: Optional[str] = None
+    title: Optional[str] = None
+    podcastName: Optional[str] = None
+    description: Optional[str] = None
+    fileName: Optional[str] = None
+    waypoints: Optional[bool] = None
+#########################
 
 class Episode(BaseModel):
 
@@ -17,21 +64,21 @@ class Episode(BaseModel):
     draft: bool = False
 
     # Source: defined in `config.yml` (the key of each show)
-    show_slug: str
+    show_slug: constr(strip_whitespace=True, to_lower=True, strict=True)
 
     # Source: defined in `config.yml` as `name`
     show_name: str
 
     # Episode number
     # Source: fireside website of each show
-    episode: int
+    episode: NonNegativeInt
 
     # Episode number padded with 3 zeros. Generated from `episode`
-    episode_padded: str
+    episode_padded: constr(min_length=4, regex=r'[0-9]+')
 
     # Episode GUID
     # Source: Fireside json api: `items[n].id`
-    episode_guid: str
+    episode_guid: UUID
 
     # Episode number again, but specifically for Hugo.
     # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
@@ -40,7 +87,12 @@ class Episode(BaseModel):
     # override it:
     #   https://gohugo.io/content-management/organization/#slug
     # Source: Generated using `episode` above
-    slug: str = ""
+    # re explained: https://regex101.com/r/tQhfM1/
+    slug: constr(regex=r'(^0$|(?:[1-9])[1-9]+$)') = ""
+    # TODO: would love to make ^ (and associated other episode variations)
+    #   into a property which pulls from .episode, but
+    #   unfortunetly it won't serialize without this...
+    # https://github.com/samuelcolvin/pydantic/issues/935
 
     # Source: fireside website of each show
     title: str
@@ -84,12 +136,12 @@ class Episode(BaseModel):
 
     # Number of bytes of the `podcast_file` above (from fireside)
     # Source: fireside
-    podcast_bytes: int
+    podcast_bytes: PositiveInt
 
     # Chapters JSON in a format defined by podcastingindex.org:
     #   https://github.com/Podcastindex-org/podcast-namespace/blob/main/chapters/jsonChapters.md
     # Source: RSS feed from fireside
-    podcast_chapters: Optional[Dict]
+    podcast_chapters: Optional[Chapters]
 
     # Has different tracking url than `podcast_file`
     # Example:

@@ -1,18 +1,31 @@
+#!/usr/bin/env python3
+
 import concurrent.futures
 import json
+from logging import DEBUG, INFO
 import os
 import sys
-from typing import Dict, List, Literal
+from typing import Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 
-import html2text
+from html2text import html2text
+from pydantic import HttpUrl, PositiveInt
+from pydantic.json import pydantic_encoder
 import requests
 import yaml
 from bs4 import BeautifulSoup, ResultSet
+from bs4.element import Tag
 from loguru import logger
 from models import Episode, Person, Sponsor
+from models.config import ConfigData, ShowDetails
+from models.episode import Chapters
+from models.fireside import FsShowItem, FsShowItemAttachment, ShowJson
+from models.misc import Jb_Episode_Record
 from models.person import PersonType
+from frontmatter import Post, dumps as f_dumps
+# DO NOT REMOVE, even though not used. (JupiterBroadcasting/show-scraper #21)
+from pydantic_yaml import YamlModelMixin
 
 
 config = {}
@@ -44,6 +57,7 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 # {
 #     "coderradio": {   # <-- `show_slug`` as defined in config.yml
 #         "123": {   # <-- ep number
+#             # rest defined in models.misc.EPISODE_RECORD
 #             "youtube_link": "https://www.youtube.com/watch?v=98Mh0BP__gE",
 #             ...
 #         }
@@ -51,6 +65,7 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 #     "show_slug_2": { ... }
 # }
 JB_DATA = {}
+JB_DATA: Dict[str, Dict[int, Jb_Episode_Record]]
 
 CHAPTERS_URL_TPL = "https://feeds.fireside.fm/{show}/json/episodes/{ep_id}/chapters"
 
@@ -75,8 +90,9 @@ def get_list(soup: BeautifulSoup,
     return pre_element.find_next_sibling(sibling_tag)
 
 
-def seconds_2_hhmmss_str(seconds: str | int) -> str:
-    seconds = int(seconds)
+# from the FsShowItemAttachment.duration_in_seconds property
+def seconds_2_hhmmss_str(seconds: PositiveInt) -> str:
+    seconds = seconds
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     return f"{hours:02}:{minutes:02}:{seconds:02}"
@@ -96,16 +112,16 @@ def get_plain_title(title: str) -> str:
     return title.strip()
 
 
-def create_episode(api_episode,
-                   show_config,
+def create_episode(api_episode: FsShowItem,
+                   show_config: ShowDetails,
                    show_slug: str,
                    output_dir: str):
     try:
         # RANT: What kind of API doesn't give the episode number?!
-        episode_number = int(api_episode["url"].split("/")[-1])
+        episode_number = int(api_episode.url.path.split("/")[-1])
         episode_number_padded = f"{episode_number:04}"
 
-        episode_guid = api_episode["id"]
+        episode_guid = api_episode.id
 
         output_file = f"{output_dir}/{episode_number_padded}.md"
 
@@ -117,25 +133,25 @@ def create_episode(api_episode,
 
         podcast_chapters = get_podcast_chapters(api_episode, show_config)
 
-        publish_date = api_episode['date_published']
+        publish_date = api_episode.date_published
 
-        api_soup = BeautifulSoup(api_episode["content_html"], "html.parser")
+        api_soup = BeautifulSoup(api_episode.content_html, "html.parser")
         page_soup = BeautifulSoup(requests.get(
-            api_episode["url"]).content, "html.parser")
+            api_episode.url).content, "html.parser")
 
-        blurb = api_episode["summary"]
+        blurb = api_episode.summary
 
         sponsors = parse_sponsors(
-            api_soup, page_soup, show_config["acronym"], episode_number)
+            api_soup, page_soup, show_config.acronym, episode_number)
 
         links_list = get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")
-        links = html2text.html2text(str(links_list)) if links_list else None
+        links = html2text(str(links_list)) if links_list else None
 
         tags = []
         for link in page_soup.find_all("a", class_="tag"):
             _tag = link.get_text().strip()
             # escape inner quotes (occurs in coderradio 434)
-            _tag = _tag.replace("\"", "\\\"")
+            _tag = _tag.replace('"', r'\"')
             tags.append(_tag)
 
         tags = sorted(tags)
@@ -143,40 +159,60 @@ def create_episode(api_episode,
         hosts = parse_hosts_in_ep(page_soup, show_config, episode_number)
         guests = parse_guests_in_ep(page_soup, show_config, episode_number)
 
-        show_attachment = api_episode["attachments"][0]
+        show_attachment = api_episode.attachments[0]
 
-        jb_ep_data = JB_DATA.get(show_slug, {}).get(episode_number, {})
+        # not setting this to empty values (which is what .get does with {} as the second parameter)
+        #   so informed about issues like GH issue 16
+        jb_ep_data = JB_DATA.get(show_slug).get(episode_number)
         # logger.debug(f"{episode_number} jb_ep_data: {jb_ep_data}")
-        jb_url = jb_ep_data.get("jb_url")
+        jb_ep_data: Jb_Episode_Record
+        # TODO: handle this use case:
+        # https://github.com/JupiterBroadcasting/show-scraper/issues/16#issuecomment-1196751641
+        try:
+            jb_url = jb_ep_data.jb_url
+        except AttributeError as errorz:
+            # TODO: create some notification when 16 happens
+            #   still wnat to create the episode since the jb_url
+            #   deosn't get used in the new website.
+            #   this means that we're just pulling info directly
+            #   from fireside and have no direct downloads
+            logger.warning("Show won't have direct download links!\n"
+                            f"episode_url: {api_episode.url}\n")
+            if LOG_LVL == DEBUG:
+                logger.exception(f"data we have: {jb_ep_data}\n"
+                                 f"error: {errorz}")
+            jb_ep_data = Jb_Episode_Record()
+            jb_url = None
+
         if jb_url:
             jb_url = urlparse(jb_url).path
 
 
         episode = Episode(
                 show_slug=show_slug,
-                show_name=show_config["name"],
+                show_name=show_config.name,
                 episode=episode_number,
                 episode_padded=episode_number_padded,
                 episode_guid=episode_guid,
-                title=get_plain_title(api_episode["title"]),
+                title=get_plain_title(api_episode.title),
                 description=blurb,
                 date=publish_date,
                 tags=tags,
                 hosts=hosts,
                 guests=guests,
                 sponsors=sponsors,
-                podcast_duration=seconds_2_hhmmss_str(show_attachment['duration_in_seconds']),
-                podcast_file=show_attachment["url"],
-                podcast_bytes=show_attachment.get("size_in_bytes"),
+                podcast_duration=seconds_2_hhmmss_str(show_attachment.duration_in_seconds),
+                podcast_file=show_attachment.url,
+                podcast_bytes=show_attachment.size_in_bytes,
                 podcast_chapters=podcast_chapters,
-                podcast_alt_file=jb_ep_data.get("mp3_audio"),
-                podcast_ogg_file=jb_ep_data.get("ogg_audio"),
-                video_file=jb_ep_data.get("video"),
-                video_hd_file=jb_ep_data.get("hd_video"),
-                video_mobile_file=jb_ep_data.get("mobile_video"),
-                youtube_link=jb_ep_data.get("youtube"),
+                podcast_alt_file=jb_ep_data.mp3_audio,
+                podcast_ogg_file=jb_ep_data.ogg_audio,
+                video_file=jb_ep_data.video,
+                video_hd_file=jb_ep_data.hd_video,
+                video_mobile_file=jb_ep_data.mobile_video,
+                youtube_link=jb_ep_data.youtube,
                 jb_url=jb_url,
-                fireside_url=urlparse(api_episode["url"]).path,
+                fireside_url=api_episode.url.path,
                 episode_links=links
             )        
 
@@ -184,23 +220,24 @@ def create_episode(api_episode,
 
     except Exception as e:
         logger.exception("Failed to create an episode from url!\n"
-                         f"episode_url: {api_episode.get('url')}")
+                         f"episode_url: {api_episode.url}")
 
-def get_podcast_chapters(api_episode, show_config):
+def get_podcast_chapters(api_episode: FsShowItem, show_config: ShowDetails) -> Optional[Chapters]:
     try:
         chapters_url = CHAPTERS_URL_TPL.format(
-                show=show_config["fireside_slug"],
-                ep_id=api_episode["id"])
+                show=show_config.fireside_slug,
+                ep_id=api_episode.id)
 
         resp = requests.get(chapters_url)
         resp.raise_for_status()
 
-        return resp.json()
+        # TODO: use pydantic to validate
+        return Chapters(**resp.json())
     except requests.HTTPError:
         # No chapters
         pass
 
-def save_file(file_path, content, mode="w", overwrite=False):
+def save_file(file_path: str, content: Union[bytes,str], mode: str = "w", overwrite: bool = False) -> bool:
     if not overwrite and os.path.exists(file_path):
         logger.warning(f"Skipping saving `{file_path}` as it already exists")
         return False
@@ -211,9 +248,9 @@ def save_file(file_path, content, mode="w", overwrite=False):
     logger.info(f"Saved file: {file_path}")
     return True
 
-def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config, ep):
-    show = show_config["acronym"]
-    base_url = show_config["fireside_url"]
+def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep: int):
+    show = show_config.acronym
+    base_url = show_config.fireside_url
 
     episode_hosts = []
 
@@ -233,9 +270,9 @@ def parse_hosts_in_ep(page_soup: BeautifulSoup, show_config, ep):
     return episode_hosts
 
 
-def parse_guests_in_ep(page_soup, show_config, ep):
-    show = show_config["acronym"]
-    base_url = show_config["fireside_url"]
+def parse_guests_in_ep(page_soup: BeautifulSoup, show_config: ShowDetails, ep: int):
+    show = show_config.acronym
+    base_url = show_config.fireside_url
 
     episode_guests = []
 
@@ -260,7 +297,7 @@ def parse_guests_in_ep(page_soup, show_config, ep):
     return episode_guests
 
 
-def parse_sponsors(api_soup, page_soup, show, ep):
+def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str, ep: int) -> List[str]:
     # Get only the links of all the sponsors
     sponsors_ul = get_list(api_soup, "Sponsored By:")
     if not sponsors_ul:
@@ -275,6 +312,7 @@ def parse_sponsors(api_soup, page_soup, show, ep):
     sponsors = []
     for sl in sponsors_links:
         try:
+            # FIXME: eventually get around to do a more "official" solution
             # Very ugly but works. The goal is to get the hostname of the sponsor
             # link without the subdomain. It would fail on tlds like "co.uk". but I
             # don't think JB had any sponsors like that so it's fine.
@@ -282,7 +320,7 @@ def parse_sponsors(api_soup, page_soup, show, ep):
             shortname = f"{sponsor_slug}-{show}".lower()
             sponsors.append(shortname)
 
-            filename = f"{shortname}.json"
+            filename = f"{shortname}.md"
 
             # Find the <a> element on the page with the link
             sponsor_a = page_soup.find(
@@ -291,7 +329,7 @@ def parse_sponsors(api_soup, page_soup, show, ep):
                 SPONSORS.update({
                     filename: Sponsor(
                         shortname=shortname,
-                        name=sponsor_a.find("header").text.strip(),
+                        title=sponsor_a.find("header").text.strip(),
                         description=sponsor_a.find("p").text.strip(),
                         link=sl
                     )
@@ -304,13 +342,13 @@ def parse_sponsors(api_soup, page_soup, show, ep):
     return sponsors
 
 
-def save_json_file(filename, json_obj, dest_dir, overwrite=False):
+def save_post_obj_file(filename: str, post_obj: Post, dest_dir: str, overwrite: bool = False) -> None:
     data_dont_override = set(config.get("data_dont_override"))
     if IS_LATEST_ONLY and filename in data_dont_override:
         logger.warning(f"Filename `{filename}` found in `data_dont_override`! Will not save to it.")
         overwrite = False
     file_path = os.path.join(dest_dir, filename)
-    save_file(file_path, json.dumps(json_obj, indent=4), overwrite=overwrite)
+    save_file(file_path, f_dumps(post_obj), overwrite=overwrite)
 
 
 def get_username_from_url(url):
@@ -380,12 +418,12 @@ def parse_name(page_soup, username, guest_data):
     return name
      
 
-def scrape_data_from_jb(shows, executor):
+def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     logger.info(">>> Scraping data from jupiterbroadcasting.com...")
 
     # Collect all links for episode page of each show into JB_DATA
     for show_slug, show_config in shows.items():
-        show_base_url = show_config["jb_url"]
+        show_base_url = show_config.jb_url
         jb_populate_episodes_urls(show_slug, show_base_url)
     logger.success(">>> Finished collecting urls of episode pages") 
 
@@ -395,28 +433,47 @@ def scrape_data_from_jb(shows, executor):
     for show, show_episodes in JB_DATA.items():
         for ep, ep_data in show_episodes.items():
             futures.append(executor.submit(
-                jb_get_ep_page_content, ep_data["jb_url"], ep_data, show, ep))
+                jb_get_ep_page_content, ep_data.jb_url, ep_data, show, ep))
 
+    # after previous is completed then parse + load all info
+    #   into JB_DATA for direct downloads
     for future in concurrent.futures.as_completed(futures):
         page_content, ep_data, show, ep = future.result()
+        page_content: requests.Response
+        ep_data: Jb_Episode_Record
+        show: str # episode slug
+        ep: int # episode number
+
         jb_populate_direct_links_for_episode(page_content, ep_data, show, ep)
 
     # save to a json file - this might be useful for files migrations
     # save_json_file("jb_all_shows_links.json", JB_DATA, DATA_ROOT_DIR)
     logger.success(">>> Finished scraping data from jupiterbroadcasting.com")
 
-def jb_get_ep_page_content(page_url, ep_data, show, ep):
+def jb_get_ep_page_content(page_url: HttpUrl, ep_data: Jb_Episode_Record, show: str, ep: int)-> Tuple[requests.Response, Dict, str, int]:
+    """
+    returns a tuple with the page's content, Jbd_Episode_Record, show slug, and episode number
+    """
     resp = requests.get(page_url)
-    return resp.content, ep_data, show, ep
+    return resp, ep_data, show, ep
 
-def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
+def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_data: Jb_Episode_Record, show: str, ep: int) -> None:
+    """
+    this populates the rest of the Jbd_Episode_Record object with direct
+    download links to various services (YouTube, OGG audio, etc..).
+    It dynamically adds them based on their name (i.e. video, hd_video, youtube, mp3_audio, etc...)
+    as well as the corrisponding URL for the direct download.
+
+    This also modifies the ep_data parameter in place, which is why it doesn't return anything
+    """
     try:
-        ep_soup = BeautifulSoup(ep_page_content, "html.parser")
+        ep_soup = BeautifulSoup(ep_page_content.content, "html.parser")
         dd_div = ep_soup.find("div", attrs={"id": "direct-downloads"})
         if dd_div:
             dl_links = dd_div.find_all("a")
         else:
-            # older episodes have different structure.
+            # older episodes have different structure. (example below)
+            # https://web.archive.org/web/20200227001055/https://www.jupiterbroadcasting.com/90751/budgie-jumping-lup-120/
             p_links = get_list(ep_soup, "Direct Download:", "h3", "p")
             if p_links:
                 dl_links = p_links.find_all("a")
@@ -427,12 +484,16 @@ def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
                     f"  ep: {ep}")
                 return
 
+    # this uses the resulting anchor tags and creates them dyanmically based on text
         for dl_link in dl_links:
             url = dl_link.get("href").strip("\\\"")
             slug = dl_link.text.lower().replace(" ", "_")
-            ep_data.update({
-                slug: url
-            })
+
+            # check if it's a defined property on the dataclass
+            if slug in ep_data.__match_args__:
+                setattr(ep_data, slug, url)
+                continue
+            logger.error(f"New field {slug} (value of: {url}) is not already explicitly defined in the Jbd_Episode_Record")
     except Exception as e:
         logger.exception(
             "Failed to parse direct links for episode.\n"
@@ -440,11 +501,37 @@ def jb_populate_direct_links_for_episode(ep_page_content, ep_data, show, ep):
             f"  ep: {ep}")
 
 
-def jb_populate_episodes_urls(show_slug, show_base_url):
-    show_data = {}
-    JB_DATA.update({show_slug: show_data})
+def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
+    """
+    Populates the JB_DATA global dictionary with
+    {
+        <show_slug>: {
+            <episode_number>: {
+                "jb_url": "<episode_link>"
+            }
+        }
+    """
+    # setting JB_DATA[show_slug] to an empty dictionary
+    JB_DATA.setdefault(show_slug, {})
+    # referencing aformentioned show slug as show_data
+    show_data = JB_DATA[show_slug]
 
     last_page = jb_get_last_page_of_show(show_base_url)
+
+    # these are edge cases for the loop below which don't match
+    #   the typical episode number format of "<title> <episode_number>"
+    show_exceptions = {
+        # LAN edge case. This episode is between ep152 and 153, hence it
+        # shall be officially titled as episode 152.5 for now forth
+        # (hopefully having floaty number won't brake things 😛)
+
+        # TODO create the episode file for this, cuz it's not in Fireside
+        'Goodbye from Linux Action News': 152.5,
+        # Some Coder exceptions
+        'Say My Functional Name | Coder Radio': 343,
+        'New Show! | Coder Radio': 0,
+        "Someone Else’s Computer | Self-Hosted 59": 60,
+    }
 
     futures = []
 
@@ -455,9 +542,12 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
 
     for future in concurrent.futures.as_completed(futures):
         resp = future.result()
+        resp: requests.Response
+
         page_soup = BeautifulSoup(resp.content, "html.parser")
         videoitems = page_soup.find_all("div", class_="videoitem")
         for idx, item in enumerate(videoitems):
+            item: Tag
             if IS_LATEST_ONLY and idx >= LATEST_ONLY_EP_LIMIT:
                 logger.debug(f"Limiting scraping to only {LATEST_ONLY_EP_LIMIT} most"
                             " recent episodes")
@@ -465,31 +555,28 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
 
 
             try:
+                # finds anchor tag that links to the episode
                 link = item.find("a")
+
                 link_href = link.get("href")
-                ep_num = link.get("title").split(" ")[-1]
+                title = link.get("title")
+                ep_num = title.split(" ")[-1]
 
                 if ep_num == "LU1":
                     # LUP edge case for ep 1
                     ep_num = 1
-                if link.get("title") == "Goodbye from Linux Action News":
-                    # LAN edge case. This episode is between ep152 and 153, hence it
-                    # shall be officially titled as episode 152.5 for now forth
-                    # (hopefully having floaty number won't brake things 😛)
-
-                    # TODO create the episode file for this, cuz it's not in Fireside
-                    ep_num = 152.5
-                # Some Coder exceptions
-                if link.get("title") == "Say My Functional Name | Coder Radio":
-                    ep_num = 343
-                if link.get("title") == "New Show! | Coder Radio":
-                    ep_num = 0
+                elif title in show_exceptions.keys():
+                    ep_num = show_exceptions[title]
                 else:
+                    # if ep_num != link_href.split('-')[-1].strip('/'):
+                    #     raise ValueError(f"Episode URL ({link_href}) doesn't have the same episode number as the title: {ep_num}")
                     ep_num = int(ep_num)
 
-                show_data.update({ep_num: {
-                    "jb_url": link_href
-                }})
+                # catching if overwritting episodes with JB_DATA
+                if ep_num in show_data.keys():
+                    raise ValueError(f"There is already an existing show for episode number: {ep_num}\nWhich is: {show_data[ep_num]}\nCurrent attempted info: {item.contents}\nAll current info: {JB_DATA}")
+
+                show_data.update({ep_num: Jb_Episode_Record(jb_url=link_href)})
             except Exception as e:
                 logger.exception(
                     "Failed to get episode page link and number from JB site.\n"
@@ -498,26 +585,39 @@ def jb_populate_episodes_urls(show_slug, show_base_url):
                     f"  ep_idx: {idx}\n"
                     f"  html: {item.string}")
 
-def jb_get_last_page_of_show(show_base_url):
+def jb_get_last_page_of_show(show_base_url) -> int:
+    """
+    This uses the pagination element on https://www.jupiterbroadcasting.com/show/<show_name> to determine
+    how many pages of the show there is to process
+    """
+
+    # this is an override to only get the most recent page of the show
     if IS_LATEST_ONLY:
         logger.debug(f"Force only scraping of the most recent page")
         # Scrape only the most recent page
         return 1
 
+    # requests the first page of the show
     page_soup = BeautifulSoup(requests.get(
         show_base_url).content, "html.parser")
+    # parses the pagination numbers i.e. "Page 1 of 7"
     pages_span = page_soup.find("span", class_="pages")
+    
+    # if the pagination exists
     if pages_span:
-        last_page = pages_span.text.split(" ")[-1]
-        last_page = int(last_page)
+        # grabs the last space delimited text
+        #   i.e. 7 with "Page 1 of 7"
+        last_page = int(pages_span.text.split(" ")[-1])
+    
+    # if no pagination element exists
     else:
         last_page = 1  # Just one page
     return last_page
 
 
-def scrape_hosts_and_guests(shows, executor):
+def scrape_hosts_and_guests(shows: Dict[str, ShowDetails] , executor):
     logger.info(">>> Scraping hosts and guests from Fireside...")
-    people_dir = os.path.join(DATA_ROOT_DIR, "data", "people")
+    people_dir = os.path.join(DATA_ROOT_DIR, "content", "people")
 
     guests = scrape_show_guests(shows, executor)
     hosts = scrape_show_hosts(shows, executor)
@@ -528,8 +628,8 @@ def scrape_hosts_and_guests(shows, executor):
     futures = []
     for username, person in people.items():
         futures.append(
-            executor.submit(save_json_file,
-                            f"{username}.json", person.dict(),
+            executor.submit(save_post_obj_file,
+                            f"{username}.md", Post('', **person.dict()),
                             people_dir, overwrite=True)
         )
 
@@ -539,10 +639,10 @@ def scrape_hosts_and_guests(shows, executor):
     logger.success(">>> Finished scraping hosts and guests")
 
 
-def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
+def scrape_show_hosts(shows: Dict[str, ShowDetails] , executor) -> Dict[str, Person]:
     show_hosts = {}
     for show_data in shows.values():
-        show_fireside_url = show_data['fireside_url']
+        show_fireside_url = show_data.fireside_url
         all_hosts_url = f"{show_fireside_url}/hosts"
         hosts_soup = BeautifulSoup(requests.get(all_hosts_url).content, "html.parser")
         
@@ -565,8 +665,8 @@ def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
             avatar_small = save_avatar_img(avatar_small_url, username, is_small=True)
             avatar = save_avatar_img(avatar_url, username)
 
-            append_person_to_dict("host", show_hosts, username, show_data["acronym"],
-                                  name=name,
+            append_person_to_dict("host", show_hosts, username, show_data.acronym,
+                                  title=name,
                                   avatar="/"+avatar,
                                   avatar_small="/"+avatar_small,
                                   bio=bio,
@@ -575,7 +675,7 @@ def scrape_show_hosts(shows: Dict, executor) -> Dict[str, Person]:
 
     return show_hosts
 
-def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
+def scrape_show_guests(shows: Dict[str, ShowDetails], executor) -> Dict[str, Person]:
     """Return dict of Person by username
     """
 
@@ -583,7 +683,7 @@ def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
 
     # no need to do thread since there's only a handful number of shows
     for show_data in shows.values():
-        show_fireside_url = show_data['fireside_url']
+        show_fireside_url = show_data.fireside_url
         all_guests_url = f"{show_fireside_url}/guests"
         guests_soup = BeautifulSoup(requests.get(all_guests_url).content, "html.parser")
         links = guests_soup.find("ul", class_="show-guests").find_all("a")
@@ -604,8 +704,8 @@ def scrape_show_guests(shows: Dict, executor) -> Dict[str, Person]:
             html_page = guest_pages.get(url)
             page_data = parse_person_page(html_page)
 
-            append_person_to_dict("guest", show_guests, username, show_data["acronym"],
-                                  name=name,
+            append_person_to_dict("guest", show_guests, username, show_data.acronym,
+                                  title=name,
                                   avatar="/"+avatar,
                                   avatar_small="/"+avatar_small,
                                   **page_data)
@@ -686,19 +786,22 @@ def get_pages_content_threaded(urls: List[str], executor) -> Dict[str, str]:
     return result
 
 
-def scrape_episodes_from_fireside(shows, executor):
+def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
     logger.info(">>> Scraping episodes from Fireside...")
 
     futures = []
     for show_slug, show_config in shows.items():
+
         # Use same structure as in the root project for easy copy over
         output_dir = os.path.join(
             DATA_ROOT_DIR, "content", "show", show_slug)
 
-        api_data = requests.get(
-            show_config['fireside_url'] + "/json").json()
+        api_data = ShowJson(
+            **requests.get( show_config.fireside_url + "/json")
+                .json()
+        )
 
-        for idx, api_episode in enumerate(api_data["items"]):
+        for idx, api_episode in enumerate(api_data.items):
 
             if IS_LATEST_ONLY and idx >= LATEST_ONLY_EP_LIMIT:
                 logger.debug(f"Limiting scraping to only {LATEST_ONLY_EP_LIMIT} most"
@@ -719,12 +822,12 @@ def scrape_episodes_from_fireside(shows, executor):
 
 def save_sponsors(executor):
     logger.info(">>> Saving the sponsors found in episodes from Fireside...")
-    sponsors_dir = os.path.join(DATA_ROOT_DIR, "data", "sponsors")
+    sponsors_dir = os.path.join(DATA_ROOT_DIR, "content", "sponsors")
     futures = []
     for filename, sponsor in SPONSORS.items():
         futures.append(executor.submit(
-            save_json_file,
-            filename, sponsor.dict(), sponsors_dir, overwrite=True))
+            save_post_obj_file,
+            filename, Post('',**sponsor.dict()), sponsors_dir, overwrite=True))
 
     # Drain all threads
     for future in concurrent.futures.as_completed(futures):
@@ -736,21 +839,21 @@ def main():
     global config
     with open("config.yml") as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
-        shows = config['shows']
+        validated_config = ConfigData(shows=config['shows'], usernames_map=config['usernames_map'])
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Must be first. Here the JB_DATA global is populated
-        scrape_data_from_jb(shows, executor)
+        scrape_data_from_jb(validated_config.shows, executor)
 
-        scrape_episodes_from_fireside(shows, executor)
+        scrape_episodes_from_fireside(validated_config.shows, executor)
 
         save_sponsors(executor)
 
-        scrape_hosts_and_guests(shows, executor)
+        scrape_hosts_and_guests(validated_config.shows, executor)
 
 
 if __name__ == "__main__":
-    LOG_LVL = int(os.getenv("LOG_LVL", 20))  # Defaults to INFO
+    LOG_LVL = int(os.getenv("LOG_LVL", INFO))  # Defaults to INFO, 10 for debug
     logger.remove()  # Remove default logger
     logger.add(sys.stderr, level=LOG_LVL)
 
