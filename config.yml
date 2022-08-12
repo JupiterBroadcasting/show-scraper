@@ -59,6 +59,9 @@ usernames_map:
 # overriden when scraping latest shows. Any file that was manually editer should
 # be added here.
 data_dont_override:
-  - brent.json
-  - chris.json
-  - wes.json
+  - brent.md
+  - chris.md
+  - wes.md
+  - allanjude.md
+  - chzbacon.md
+  - ell.md
