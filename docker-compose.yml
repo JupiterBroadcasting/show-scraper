@@ -4,6 +4,8 @@ services:
     image: jb-scraper
     container_name: jb-scraper
     environment:
+      # - LATEST_ONLY=true
+      # - LOG_LVL=10
       - DATA_DIR=/data
     build:
       context: .
