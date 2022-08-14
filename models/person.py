@@ -6,7 +6,7 @@ PersonType = Literal["host", "guest"]
 class Person(BaseModel):
 
     type: PersonType
-    username: str  # Unique ID
+    mumble_username: str  # Unique ID
     title: str
     bio: Optional[str]
     avatar: Optional[str]
