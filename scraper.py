@@ -140,6 +140,12 @@ def create_episode(api_episode: FsShowItem,
             api_episode.url).content, "html.parser")
 
         blurb = api_episode.summary
+        if not blurb:
+            # `summary` might be empty, fallback to getting content of first <p> inside
+            # `content_html`
+            _p_tag = api_soup.find("p")
+            if _p_tag:
+                blurb = _p_tag.text
 
         sponsors = parse_sponsors(
             api_soup, page_soup, show_config.acronym, episode_number)
