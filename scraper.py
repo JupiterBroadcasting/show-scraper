@@ -367,11 +367,10 @@ def get_username_from_url(url):
     username = urlparse(url).path.split("/")[-1]
 
     # Replace username if found in usernames_map
-    usernames_map = config.get("usernames_map")
-    if usernames_map:
-        username = usernames_map.get(
-            username, # get by the key that should be replaced
-            username) # default to the key if not found
+    usernames_map = config.usernames_map
+    for username_key, username_items in usernames_map.items():
+        if username in username_items:
+            username = username_key
 
 
     return username
