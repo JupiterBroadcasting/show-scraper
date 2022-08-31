@@ -28,7 +28,7 @@ from frontmatter import Post, dumps as f_dumps
 from pydantic_yaml import YamlModelMixin
 
 
-config = {}
+config: ConfigData = {}
 
 
 # Limit scraping only the latest episodes of the show (executes the script much faster!)
@@ -349,6 +349,7 @@ def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str,
 
 
 def save_post_obj_file(filename: str, post_obj: Post, dest_dir: str, overwrite: bool = False) -> None:
+    global config
     data_dont_override = set(config.get("data_dont_override"))
     if IS_LATEST_ONLY and filename in data_dont_override:
         logger.warning(f"Filename `{filename}` found in `data_dont_override`! Will not save to it.")
@@ -362,6 +363,7 @@ def get_username_from_url(url):
     Get the last path part of the url which is the username for the hosts and guests.
     Replace it using the `username_map` from config.
     """
+    global config
     username = urlparse(url).path.split("/")[-1]
 
     # Replace username if found in usernames_map
@@ -844,18 +846,18 @@ def save_sponsors(executor):
 def main():
     global config
     with open("config.yml") as f:
-        config = yaml.load(f, Loader=yaml.SafeLoader)
-        validated_config = ConfigData(shows=config['shows'], usernames_map=config['usernames_map'])
+        tmp_config = yaml.load(f, Loader=yaml.SafeLoader)
+        config = ConfigData(**tmp_config)
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Must be first. Here the JB_DATA global is populated
-        scrape_data_from_jb(validated_config.shows, executor)
+        scrape_data_from_jb(config.shows, executor)
 
-        scrape_episodes_from_fireside(validated_config.shows, executor)
+        scrape_episodes_from_fireside(config.shows, executor)
 
         save_sponsors(executor)
 
-        scrape_hosts_and_guests(validated_config.shows, executor)
+        scrape_hosts_and_guests(config.shows, executor)
 
 
 if __name__ == "__main__":

@@ -17,3 +17,4 @@ class ConfigData:
         extra = Extra.forbid
     shows: Dict[str,ShowDetails]
     usernames_map: Dict[str,Set[str]]
+    data_dont_override: Set[str]
