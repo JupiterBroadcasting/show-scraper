@@ -350,7 +350,7 @@ def parse_sponsors(api_soup: BeautifulSoup, page_soup: BeautifulSoup, show: str,
 
 def save_post_obj_file(filename: str, post_obj: Post, dest_dir: str, overwrite: bool = False) -> None:
     global config
-    data_dont_override = set(config.get("data_dont_override"))
+    data_dont_override = config.data_dont_override
     if IS_LATEST_ONLY and filename in data_dont_override:
         logger.warning(f"Filename `{filename}` found in `data_dont_override`! Will not save to it.")
         overwrite = False
