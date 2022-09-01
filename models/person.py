@@ -15,7 +15,6 @@ class Person(BaseModel):
     twitter: Optional[HttpUrl]
     linkedin: Optional[HttpUrl]
     instagram: Optional[HttpUrl]
-    gplus: Optional[HttpUrl]
     youtube: Optional[HttpUrl]
 
 
