@@ -757,8 +757,6 @@ def parse_social_links(links: ResultSet):
             result["linkedin"] = href
         elif "instagram" in label:
             result["instagram"] = href
-        elif "google" in label:
-            result["gplus"] = href
         elif "youtube" in label:
             result["youtube"] = href
 
