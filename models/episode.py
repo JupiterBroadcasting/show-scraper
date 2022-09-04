@@ -77,7 +77,7 @@ class Episode(BaseModel):
     episode_padded: constr(min_length=4, regex=r'[0-9]+')
 
     # Episode GUID
-    # Source:json api: `items[n].id`
+    # Source: Fireside json api: `items[n].id`
     episode_guid: UUID
 
     # Episode number again, but specifically for Hugo.
