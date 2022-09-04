@@ -41,7 +41,7 @@ class Chapter:
 @py_dataclass
 class Chapters:
     """
-    Used to parse the fireside chapters api endpoint:
+    Used to parse thechapters api endpoint:
     https://feeds.fireside.fm/{show}/json/episodes/{ep_uuid}/chapters
     """
     # semantic versioning regex: https://ihateregex.io/expr/semver/
@@ -70,19 +70,19 @@ class Episode(BaseModel):
     show_name: str
 
     # Episode number
-    # Source: fireside website of each show
+    # Source:website of each show
     episode: NonNegativeInt
 
     # Episode number padded with 3 zeros. Generated from `episode`
     episode_padded: constr(min_length=4, regex=r'[0-9]+')
 
     # Episode GUID
-    # Source: Fireside json api: `items[n].id`
+    # Source:json api: `items[n].id`
     episode_guid: UUID
 
     # Episode number again, but specifically for Hugo.
     # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
-    # zero padding in the link to the episdoe (e.g. `https://coder.show/42`).
+    # zero padding in the link to the episode (e.g. `https://coder.show/42`).
     # Hugo will use the filename for the slug by default, unless this param is set to
     # override it:
     #   https://gohugo.io/content-management/organization/#slug
@@ -91,17 +91,17 @@ class Episode(BaseModel):
     slug: constr(regex=r'(^0$|(?:[1-9])[1-9]+$)') = ""
     # TODO: would love to make ^ (and associated other episode variations)
     #   into a property which pulls from .episode, but
-    #   unfortunetly it won't serialize without this...
+    #   unfortunately it won't serialize without this...
     # https://github.com/samuelcolvin/pydantic/issues/935
 
-    # Source: fireside website of each show
+    # Source:website of each show
     title: str
 
-    # Source: fireside website of each show
+    # Source:website of each show
     description: str
 
     # ISO 8601 Date "YYYY-MM-DD"
-    # Source: fireside website of each show
+    # Source:website of each show
     date: datetime
 
     # Generated value from `show_slug`
@@ -110,35 +110,35 @@ class Episode(BaseModel):
     # Source: hardcoded show name from fireside-scraper/config.yml
     categories: List[str] = []
 
-    # Source: fireside website of each show
+    # Source:website of each show
     tags: List[str]
 
-    # Source: fireside website of each show
+    # Source:website of each show
     hosts: List[str]
 
-    # Source: fireside website of each show
+    # Source:website of each show
     guests: List[str]
 
-    # Constructed using link domain and show acronym from configl.yml
+    # Constructed using link domain and show acronym from config.yml
     # Example:
     #   ["linode.com-lup", "linode.com-cr", "bitwarden.com-lup"]
-    # Source: fireside website of each show
+    # Source:website of each show
     sponsors: List[str]
 
     # Duration in hh:mm:ss format
-    # Source: fireside website of each show
+    # Source:website of each show
     podcast_duration: time
 
     # Example:
     #   "https://chtbl.com/track/392D9/aphid.fireside.fm/d/1437767933/f31a453c-fa15-491f-8618-3f71f1d565e5/79855861-037c-4e37-81c9-36a795764341.mp3"
-    # Source: fireside website of each show
+    # Source:website of each show
     podcast_file: AnyHttpUrl
 
     # Number of bytes of the `podcast_file` above (from fireside)
     # Source: fireside
     podcast_bytes: PositiveInt
 
-    # Chapters JSON in a format defined by podcastingindex.org:
+    # Chapters JSON in a format defined by podcastindex.org:
     #   https://github.com/Podcastindex-org/podcast-namespace/blob/main/chapters/jsonChapters.md
     # Source: RSS feed from fireside
     podcast_chapters: Optional[Chapters]
@@ -170,13 +170,13 @@ class Episode(BaseModel):
     # Source: jupiterbroadcasting.com
     jb_url: Optional[str]
 
-    # Path part of the URL to the episode page on show's fireside website
+    # Path part of the URL to the episode page on show'swebsite
     # Example:
     #   "/42"
     fireside_url: str
 
     # Markdown list with links and some descriptions
-    # Source: fireside website of each show
+    # Source:website of each show
     episode_links: Optional[str]
 
     @root_validator(pre=False)

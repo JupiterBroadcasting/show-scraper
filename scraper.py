@@ -178,8 +178,8 @@ def create_episode(api_episode: FsShowItem,
             jb_url = jb_ep_data.jb_url
         except AttributeError as errorz:
             # TODO: create some notification when 16 happens
-            #   still wnat to create the episode since the jb_url
-            #   deosn't get used in the new website.
+            #   still want to create the episode since the jb_url
+            #   doesn't get used in the new website.
             #   this means that we're just pulling info directly
             #   from fireside and have no direct downloads
             logger.warning("Show won't have direct download links!\n"
@@ -468,7 +468,7 @@ def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_
     this populates the rest of the Jbd_Episode_Record object with direct
     download links to various services (YouTube, OGG audio, etc..).
     It dynamically adds them based on their name (i.e. video, hd_video, youtube, mp3_audio, etc...)
-    as well as the corrisponding URL for the direct download.
+    as well as the corresponding URL for the direct download.
 
     This also modifies the ep_data parameter in place, which is why it doesn't return anything
     """
@@ -490,7 +490,7 @@ def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_
                     f"  ep: {ep}")
                 return
 
-    # this uses the resulting anchor tags and creates them dyanmically based on text
+    # this uses the resulting anchor tags and creates them dynamically based on text
         for dl_link in dl_links:
             url = dl_link.get("href").strip("\\\"")
             slug = dl_link.text.lower().replace(" ", "_")
@@ -519,7 +519,7 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
     """
     # setting JB_DATA[show_slug] to an empty dictionary
     JB_DATA.setdefault(show_slug, {})
-    # referencing aformentioned show slug as show_data
+    # referencing aforementioned show slug as show_data
     show_data = JB_DATA[show_slug]
 
     last_page = jb_get_last_page_of_show(show_base_url)
@@ -578,7 +578,7 @@ def jb_populate_episodes_urls(show_slug: str, show_base_url: HttpUrl) -> None:
                     #     raise ValueError(f"Episode URL ({link_href}) doesn't have the same episode number as the title: {ep_num}")
                     ep_num = int(ep_num)
 
-                # catching if overwritting episodes with JB_DATA
+                # catching if overwriting episodes with JB_DATA
                 if ep_num in show_data.keys():
                     raise ValueError(f"There is already an existing show for episode number: {ep_num}\nWhich is: {show_data[ep_num]}\nCurrent attempted info: {item.contents}\nAll current info: {JB_DATA}")
 
@@ -630,7 +630,7 @@ def scrape_hosts_and_guests(shows: Dict[str, ShowDetails] , executor):
     people = guests | hosts  # combine the two dicts (hosts data overrides guests)
 
 
-    # Save json files asyncronously
+    # Save json files asynchronously
     futures = []
     for username, person in people.items():
         futures.append(
