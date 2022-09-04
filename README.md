@@ -12,7 +12,9 @@ Originally based on [Self-Hosted show-notes scraper](https://github.com/selfhost
 
 
 All the scraped data is saved into the `./data` folder.
-
+`config.yml` contains:
+	* `usernames_map` - Fireside to Hugo username translations
+	* `data_dont_override` - data filenames (sponsors or people) which shouldn't be overridden when scraping Fireside
 
 ## Run using Docker
 

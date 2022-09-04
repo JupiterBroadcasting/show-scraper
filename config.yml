@@ -35,7 +35,7 @@ shows:
     jb_url: https://www.jupiterbroadcasting.com/show/office
     acronym: OH
     name: Office Hours
-# Map usernames of hosts/guests as they appear in fireside to how we want to 
+# Map usernames of hosts/guests as they appear in Fireside to how we want to 
 # save them in the new website. This also helps to avoid duplicates
 usernames_map:
   chrislas: chris
@@ -56,7 +56,7 @@ usernames_map:
   stuartlangridge: stuart-langridge
 
 # List of any data filenames (sponsors or people) which shouldn't be 
-# overriden when scraping latest shows. Any file that was manually editer should
+# overridden when scraping latest shows. Any file that was manually edited should
 # be added here.
 data_dont_override:
   - brent.md
