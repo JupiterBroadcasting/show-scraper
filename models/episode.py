@@ -41,7 +41,7 @@ class Chapter:
 @py_dataclass
 class Chapters:
     """
-    Used to parse thechapters api endpoint:
+    Used to parse the Fireside chapters api endpoint:
     https://feeds.fireside.fm/{show}/json/episodes/{ep_uuid}/chapters
     """
     # semantic versioning regex: https://ihateregex.io/expr/semver/
@@ -70,7 +70,7 @@ class Episode(BaseModel):
     show_name: str
 
     # Episode number
-    # Source:website of each show
+    # Source: Fireside website of each show
     episode: NonNegativeInt
 
     # Episode number padded with 3 zeros. Generated from `episode`
@@ -94,14 +94,14 @@ class Episode(BaseModel):
     #   unfortunately it won't serialize without this...
     # https://github.com/samuelcolvin/pydantic/issues/935
 
-    # Source:website of each show
+    # Source: Fireside website of each show
     title: str
 
-    # Source:website of each show
+    # Source: Fireside website of each show
     description: str
 
     # ISO 8601 Date "YYYY-MM-DD"
-    # Source:website of each show
+    # Source: Fireside website of each show
     date: datetime
 
     # Generated value from `show_slug`
@@ -110,28 +110,28 @@ class Episode(BaseModel):
     # Source: hardcoded show name from fireside-scraper/config.yml
     categories: List[str] = []
 
-    # Source:website of each show
+    # Source: Fireside website of each show
     tags: List[str]
 
-    # Source:website of each show
+    # Source: Fireside website of each show
     hosts: List[str]
 
-    # Source:website of each show
+    # Source: Fireside website of each show
     guests: List[str]
 
     # Constructed using link domain and show acronym from config.yml
     # Example:
     #   ["linode.com-lup", "linode.com-cr", "bitwarden.com-lup"]
-    # Source:website of each show
+    # Source: Fireside website of each show
     sponsors: List[str]
 
     # Duration in hh:mm:ss format
-    # Source:website of each show
+    # Source: Fireside website of each show
     podcast_duration: time
 
     # Example:
     #   "https://chtbl.com/track/392D9/aphid.fireside.fm/d/1437767933/f31a453c-fa15-491f-8618-3f71f1d565e5/79855861-037c-4e37-81c9-36a795764341.mp3"
-    # Source:website of each show
+    # Source: Fireside website of each show
     podcast_file: AnyHttpUrl
 
     # Number of bytes of the `podcast_file` above (from fireside)
@@ -170,13 +170,13 @@ class Episode(BaseModel):
     # Source: jupiterbroadcasting.com
     jb_url: Optional[str]
 
-    # Path part of the URL to the episode page on show'swebsite
+    # Path part of the URL to the episode page on show's Fireside website
     # Example:
     #   "/42"
     fireside_url: str
 
     # Markdown list with links and some descriptions
-    # Source:website of each show
+    # Source: Fireside website of each show
     episode_links: Optional[str]
 
     @root_validator(pre=False)
