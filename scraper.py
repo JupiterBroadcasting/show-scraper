@@ -638,6 +638,12 @@ def scrape_hosts_and_guests(shows: Dict[str, ShowDetails] , executor):
                             f"{username}.md", Post('', **person.dict()),
                             people_dir, overwrite=True)
         )
+        if (username in guests and person.type == 'host'):
+            futures.append(
+            executor.submit(save_post_obj_file,
+                            f"{username}-guest.md", Post('', **guests[username].dict()),
+                            people_dir, overwrite=True)
+            )
 
     # Drain all threads
     for future in concurrent.futures.as_completed(futures):
