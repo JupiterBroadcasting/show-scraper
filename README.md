@@ -1,18 +1,24 @@
 # JupiterBroadcasting Show Scraper
 
-**ATTENTION:**
+ 🚨**ATTENTION:**🚨
 
-**Make commits into the `main` with great caution, as this branch is used in "production" by the [jupiterbroadcasting.com GitHub Action](https://github.com/JupiterBroadcasting/jupiterbroadcasting.com/tree/main/.github/workflows/scrape.yml).**
+**Make commits into `main` with great caution, as this branch is used in "production" by the [jupiterbroadcasting.com GitHub Action](https://github.com/JupiterBroadcasting/jupiterbroadcasting.com/tree/main/.github/workflows/scrape.yml).**
 
 ---
 
-Scraper written in python to convert episodes hosted on Fireside or jupiterbroadcasting.com into Hugo files.
+Scraper written in python to convert episodes hosted on Fireside or jupiterbroadcasting.com (Wordpress) into Hugo files.
 
 Originally based on [Self-Hosted show-notes scraper](https://github.com/selfhostedshow/show-notes/blob/main/scrape.py) 
 
+## Data
 
 All the scraped data is saved into the `./data` folder.
 
+`config.yml` contains:
+
+* `usernames_map` - Fireside to Hugo username translations
+	
+* `data_dont_override` - data filenames (sponsors or people) which shouldn't be overridden when scraping Fireside
 
 ## Run using Docker
 
