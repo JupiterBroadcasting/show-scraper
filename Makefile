@@ -4,3 +4,6 @@ scrape: clean
 clean:
 	-rm -r ./data
 	-mkdir ./data
+
+test:
+	pytest --no-header -v
