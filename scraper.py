@@ -71,6 +71,7 @@ JB_DATA: Dict[str, Dict[int, Jb_Episode_Record]]
 CHAPTERS_URL_TPL = "https://feeds.fireside.fm/{show}/json/episodes/{ep_id}/chapters"
 
 # Regex to strip Episode Numbers and information after the |
+# https://regex101.com/r/gkUzld/
 SHOW_TITLE_REGEX = re.compile(r"^(?:(?:Episode)?\s?[0-9]+:+\s+)?(.+?)(?:(\s+\|+.*)|\s+)?$")
 
 def makedirs_safe(directory):

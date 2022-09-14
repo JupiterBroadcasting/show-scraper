@@ -1,13 +1,4 @@
-import re
-
-SHOW_TITLE_REGEX = re.compile(r"^(?:(?:Episode)?\s?[0-9]+:+\s+)?(.+?)(?:(\s+\|+.*)|\s+)?$")
-
-
-def get_plain_title(title: str) -> str:
-    """
-    Get just the show title, without any numbering etc
-    """
-    return SHOW_TITLE_REGEX.match(title)[1]
+from scraper import get_plain_title
 
 def test_selfhosted():
     assert get_plain_title("78: We Should Know Better") == "We Should Know Better"

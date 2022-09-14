@@ -5,5 +5,6 @@ clean:
 	-rm -r ./data
 	-mkdir ./data
 
+# FIXME: make docker compatible in the future
 test:
-	pytest --no-header -v
+	python -m pytest -ra -v
