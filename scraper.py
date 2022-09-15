@@ -370,7 +370,7 @@ def get_username_from_url(url):
     usernames_map = config.usernames_map
     for username_key, username_items in usernames_map.items():
         if username in username_items:
-            username = username_key
+            return username_key
 
 
     return username
