@@ -38,22 +38,35 @@ shows:
 # Map usernames of hosts/guests as they appear in Fireside to how we want to 
 # save them in the new website. This also helps to avoid duplicates
 usernames_map:
-  chrislas: chris
-  wespayne: wes
-  alexktz: alex
-  brentgervais: brent
-  mike: michael
-  dani: danielle-fore
-  daniellefore: danielle-fore
-  drewdevore: drew-devore
-  drewdvore: drew-devore
-  drewofdoom: drew-devore
-  jilllinuxgirl: jill-linuxgirl
-  jimsalter: jim-salter
-  philipmuller: philip-muller
-  alanpope: popey
-  martinwimpress: wimpy
-  stuartlangridge: stuart-langridge
+  chris:
+    - chrislas
+  wes:
+    - wespayne
+  alex:
+    - alexktz
+  brent:
+    - brentgervais
+  michael:
+    - mike
+  danielle-fore:
+    - dani
+    - daniellefore
+  drew-devore:
+    - drewdevore
+    - drewdvore
+    - drewofdoom
+  jill-linuxgirl:
+    - jilllinuxgirl
+  jim-salter:
+    - jimsalter
+  philip-muller:
+    - philipmuller
+  popey:
+    - alanpope
+  wimpy:
+    - martinwimpress
+  stuart-langridge:
+    - stuartlangridge
 
 # List of any data filenames (sponsors or people) which shouldn't be 
 # overridden when scraping latest shows. Any file that was manually edited should

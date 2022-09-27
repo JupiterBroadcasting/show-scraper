@@ -1,6 +1,6 @@
-from typing import Dict, List
+from typing import Dict, Set
 from pydantic.dataclasses import dataclass as py_dataclass
-from pydantic import HttpUrl
+from pydantic import HttpUrl, Extra
 
 
 @py_dataclass
@@ -13,5 +13,8 @@ class ShowDetails:
 
 @py_dataclass
 class ConfigData:
+    class Config:
+        extra = Extra.forbid
     shows: Dict[str,ShowDetails]
-    usernames_map: Dict[str,str]
+    usernames_map: Dict[str,Set[str]]
+    data_dont_override: Set[str]
