@@ -5,6 +5,7 @@ import json
 from logging import DEBUG, INFO
 import os
 import sys
+import re
 from typing import Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError
 from urllib.parse import urlparse
@@ -69,6 +70,9 @@ JB_DATA: Dict[str, Dict[int, Jb_Episode_Record]]
 
 CHAPTERS_URL_TPL = "https://feeds.fireside.fm/{show}/json/episodes/{ep_id}/chapters"
 
+# Regex to strip Episode Numbers and information after the |
+# https://regex101.com/r/gkUzld/
+SHOW_TITLE_REGEX = re.compile(r"^(?:(?:Episode)?\s?[0-9]+:+\s+)?(.+?)(?:(\s+\|+.*)|\s+)?$")
 
 def makedirs_safe(directory):
     try:
@@ -102,14 +106,7 @@ def get_plain_title(title: str) -> str:
     """
     Get just the show title, without any numbering etc
     """
-    # Remove number before colon
-    title = title.split(":", 1)[-1]
-
-    # Remove data after the pipe
-    title = title.rsplit("|", 1)[0]
-
-    # Strip any stray spaces
-    return title.strip()
+    return SHOW_TITLE_REGEX.match(title)[1]
 
 
 def create_episode(api_episode: FsShowItem,

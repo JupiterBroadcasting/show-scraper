@@ -4,3 +4,7 @@ scrape: clean
 clean:
 	-rm -r ./data
 	-mkdir ./data
+
+# FIXME: make docker compatible in the future
+test:
+	python -m pytest -ra -v
