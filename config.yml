@@ -54,6 +54,8 @@ usernames_map:
   alanpope: popey
   martinwimpress: wimpy
   stuartlangridge: stuart-langridge
+  cat: catherine-kretzschmar
+  jlaban: jeromelaban
 
 # List of any data filenames (sponsors or people) which shouldn't be 
 # overridden when scraping latest shows. Any file that was manually edited should
@@ -67,3 +69,5 @@ data_dont_override:
   - ell.md
   - danjohansen.md
   - alex.md
+  - catherine-kretzschmar.md
+  - jeromelaban.md
