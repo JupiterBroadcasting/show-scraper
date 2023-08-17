@@ -52,7 +52,7 @@ SPONSORS: Dict[str, Sponsor] = {}  # JSON filename as key (e.g. "linode.com-lup.
 
 # Global that holds scraped show episodes data from jupiterbroadcasting.com.
 # The data is links to different types episode medium files (mp3, youtube, ogg, video,
-#  etc.) - whatever is available on the episode page under the "Direct Download:" header 
+#  etc.) - whatever is available on the episode page under the "Direct Download:" header
 #
 # The structure of this is:
 # {
@@ -217,7 +217,7 @@ def create_episode(api_episode: FsShowItem,
                 jb_url=jb_url,
                 fireside_url=api_episode.url.path,
                 episode_links=links
-            )        
+            )
 
         save_file(output_file, episode.get_hugo_md_file_content(), overwrite=IS_LATEST_ONLY)
 
@@ -244,7 +244,7 @@ def save_file(file_path: str, content: Union[bytes,str], mode: str = "w", overwr
     if not overwrite and os.path.exists(file_path):
         logger.warning(f"Skipping saving `{file_path}` as it already exists")
         return False
-    
+
     makedirs_safe(os.path.dirname(file_path))
     with open(file_path, mode) as f:
         f.write(content)
@@ -382,12 +382,12 @@ def save_avatar_img(img_url: str, username: str, is_small=False) -> str:
         relative_filepath = get_avatar_relative_path(username, is_small)
         full_filepath = os.path.join(DATA_ROOT_DIR, "static", relative_filepath)
 
-        # Check if file exist BEFORE the request. This is more efficient as it saves 
+        # Check if file exist BEFORE the request. This is more efficient as it saves
         # time and bandwidth
         if os.path.exists(full_filepath):
             logger.warning(f"Skipping saving `{full_filepath}` as it already exists")
             return relative_filepath
-        
+
         resp = requests.get(img_url)
         resp.raise_for_status()
 
@@ -396,12 +396,12 @@ def save_avatar_img(img_url: str, username: str, is_small=False) -> str:
     except Exception:
         logger.exception("Failed to save avatar!\n"
                          f"  img_url: {img_url}"
-                         f"  username: {username}") 
+                         f"  username: {username}")
 
 
 def get_avatar_relative_path(username, is_small=False):
     # Assume all images are JPG.
-    # Might need to use `python-magic` lib to get the actual mime-type and append 
+    # Might need to use `python-magic` lib to get the actual mime-type and append
     # appropriate file extension.
     filename_suffix = "_small.jpg" if is_small else ".jpg"
     filename = username + filename_suffix
@@ -416,10 +416,10 @@ def parse_name(page_soup, username, guest_data):
     name_h1 = page_soup.find("h1")
     if name_h1:
         name = name_h1.text.strip()
-    elif guest_data: 
+    elif guest_data:
         name = guest_data.get("name", username)
     return name
-     
+
 
 def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     logger.info(">>> Scraping data from jupiterbroadcasting.com...")
@@ -428,7 +428,7 @@ def scrape_data_from_jb(shows: Dict[str,ShowDetails], executor):
     for show_slug, show_config in shows.items():
         show_base_url = show_config.jb_url
         jb_populate_episodes_urls(show_slug, show_base_url)
-    logger.success(">>> Finished collecting urls of episode pages") 
+    logger.success(">>> Finished collecting urls of episode pages")
 
     logger.info(">>> Scraping data from each episode page...")
     # Scrape each page for data
@@ -605,13 +605,13 @@ def jb_get_last_page_of_show(show_base_url) -> int:
         show_base_url).content, "html.parser")
     # parses the pagination numbers i.e. "Page 1 of 7"
     pages_span = page_soup.find("span", class_="pages")
-    
+
     # if the pagination exists
     if pages_span:
         # grabs the last space delimited text
         #   i.e. 7 with "Page 1 of 7"
         last_page = int(pages_span.text.split(" ")[-1])
-    
+
     # if no pagination element exists
     else:
         last_page = 1  # Just one page
@@ -648,17 +648,17 @@ def scrape_show_hosts(shows: Dict[str, ShowDetails] , executor) -> Dict[str, Per
         show_fireside_url = show_data.fireside_url
         all_hosts_url = f"{show_fireside_url}/hosts"
         hosts_soup = BeautifulSoup(requests.get(all_hosts_url).content, "html.parser")
-        
+
         for host_soup in hosts_soup.find_all("div", class_="host"):
             host_info_soup = host_soup.find("div", class_="host-info")
-            
+
             host_link = host_info_soup.find("h3").find("a")
             name = host_link.text.strip()
             host_url = show_fireside_url + host_link.get("href")
             username = get_username_from_url(host_url)
 
             bio = host_info_soup.find("p").text
-            
+
             links = host_info_soup.find("ul", class_="host-links").find_all("a")
             links_data = parse_social_links(links)
 
@@ -674,7 +674,7 @@ def scrape_show_hosts(shows: Dict[str, ShowDetails] , executor) -> Dict[str, Per
                                   avatar_small="/"+avatar_small,
                                   bio=bio,
                                   **links_data)
-            
+
 
     return show_hosts
 
@@ -743,7 +743,7 @@ def parse_person_page(html_page):
     if nav:
         links = nav.find_all("a")
         page_data = {**page_data, **parse_social_links(links)}
-        
+
     return page_data
 
 
@@ -772,7 +772,7 @@ def get_pages_content_threaded(urls: List[str], executor) -> Dict[str, str]:
     futures = []
     for url in urls:
         futures.append(executor.submit(requests.get, url))
-    
+
     for f in concurrent.futures.as_completed(futures):
         resp: requests.Response = f.result()
         if not resp.ok:
@@ -783,7 +783,7 @@ def get_pages_content_threaded(urls: List[str], executor) -> Dict[str, str]:
             continue
 
         result[resp.request.url] = resp.content
-    
+
     return result
 
 
@@ -796,11 +796,13 @@ def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
         # Use same structure as in the root project for easy copy over
         output_dir = os.path.join(
             DATA_ROOT_DIR, "content", "show", show_slug)
-
-        api_data = ShowJson(
-            **requests.get( show_config.fireside_url + "/json")
-                .json()
-        )
+        try:
+            api_data = ShowJson(
+                **requests.get( show_config.fireside_url + "/json")
+                    .json()
+            )
+        except Exception as e:
+            logger.exception(f"Failed to retrieve JSON for {show_config.name}.")
 
         for idx, api_episode in enumerate(api_data.items):
 
