@@ -115,8 +115,12 @@ def create_episode(api_episode: FsShowItem,
                    output_dir: str):
     try:
         # RANT: What kind of API doesn't give the episode number?!
-        episode_number = int(api_episode.url.path.split("/")[-1])
-        episode_number_padded = f"{episode_number:04}"
+        try:
+            episode_number = int(api_episode.url.path.split("/")[-1])
+            episode_number_padded = f"{episode_number:04}"
+        except:
+            episode_number = api_episode.url.path.split("/")[-1]
+            episode_number_padded = episode_number
 
         episode_guid = api_episode.id
 

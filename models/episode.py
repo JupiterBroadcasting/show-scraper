@@ -71,17 +71,17 @@ class Episode(BaseModel):
 
     # Episode number
     # Source: Fireside website of each show
-    episode: NonNegativeInt
+    episode: NonNegativeInt | str
 
     # Episode number padded with 3 zeros. Generated from `episode`
-    episode_padded: constr(min_length=4, regex=r'[0-9]+')
+    episode_padded: constr(min_length=4, regex=r'[0-9]+') | str
 
     # Episode GUID
     # Source: Fireside json api: `items[n].id`
     episode_guid: UUID
 
     # Episode number again, but specifically for Hugo.
-    # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no 
+    # Need this since we want to have zero padded filenames (e.g. `0042.md`), but no
     # zero padding in the link to the episode (e.g. `https://coder.show/42`).
     # Hugo will use the filename for the slug by default, unless this param is set to
     # override it:
@@ -213,7 +213,7 @@ class Episode(BaseModel):
     def _generate_header_image(cls, values):
         slug = values.get("show_slug")
         values["header_image"] = f"/images/shows/{slug}.png"
-    
+
     @classmethod
     def _delete_dup_links(cls, values):
         # podcast_alt_file from JB might have same link. If same - set to None
@@ -228,7 +228,7 @@ class Episode(BaseModel):
 
             if alt == file:
                 values["podcast_alt_file"] = None
-            
+
             return values
         except:
             print(json.dumps(values, indent=2))
@@ -245,8 +245,8 @@ class Episode(BaseModel):
             return v
 
         # Need this to add back the proper scheme later.
-        # Video files from scale engine don't load using https, might be the case with 
-        # other links.         
+        # Video files from scale engine don't load using https, might be the case with
+        # other links.
         scheme = "https://" if v.startswith("https://") else "http://"
 
         # Remove the scheme
@@ -260,7 +260,7 @@ class Episode(BaseModel):
         if v.startswith("chtbl.com/track/"):
             v = v.removeprefix("chtbl.com/track/")
             v = v[v.find("/")+1:]  # remove the tracking + first slash ID e.g. "392D9/"
-        
+
         # Add back scheme
         v = f"{scheme}{v}"
 
@@ -277,7 +277,7 @@ class Episode(BaseModel):
     def get_hugo_md_file_content(self) -> str:
         """Constructs and returns the content of the Hugo markdown file.
         """
-        
+
         content = self.json(exclude={"episode_links"}, indent=2)
         content += "\n"
 
@@ -285,7 +285,7 @@ class Episode(BaseModel):
             content += "\n\n"
             content += "### Episode Links\n\n"
             content += self.episode_links
-        
+
         content += "\n"  # Empty line
 
         return content
