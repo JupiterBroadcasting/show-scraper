@@ -27,7 +27,7 @@ from models.person import PersonType
 from frontmatter import Post, dumps as f_dumps
 # DO NOT REMOVE, even though not used. (JupiterBroadcasting/show-scraper #21)
 from pydantic_yaml import YamlModelMixin
-
+import lxml
 
 config = {}
 
@@ -112,7 +112,8 @@ def get_plain_title(title: str) -> str:
 def create_episode(api_episode: FsShowItem,
                    show_config: ShowDetails,
                    show_slug: str,
-                   output_dir: str):
+                   output_dir: str,
+                   yt_feeds: any):
     try:
         # RANT: What kind of API doesn't give the episode number?!
         try:
@@ -194,6 +195,12 @@ def create_episode(api_episode: FsShowItem,
         if jb_url:
             jb_url = urlparse(jb_url).path
 
+        if yt_feeds[show_slug]:
+            yt_soup = BeautifulSoup(yt_feeds[show_slug].content, 'xml')
+            for entry in yt_soup.find_all('entry'):
+                if f'{show_config.fireside_url.replace("www.","")}/{episode_number}' in entry.find('media:description').text:
+                    logger.success(f"Found YT ID ({entry.find('id').text.split(':')[-1]}) for episode {episode_number}")
+                    jb_ep_data.youtube = f"https://youtu.be/{entry.find('id').text.split(':')[-1]}"
 
         episode = Episode(
                 show_slug=show_slug,
@@ -795,7 +802,12 @@ def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
     logger.info(">>> Scraping episodes from Fireside...")
 
     futures = []
+    yt_feeds = {}
+
     for show_slug, show_config in shows.items():
+        if shows[show_slug].yt_playlist:
+            logger.success(f'>>>> Show {show_slug} has a YouTube feed id: {shows[show_slug].yt_playlist}')
+            yt_feeds[show_slug] = requests.get(f'https://www.youtube.com/feeds/videos.xml?playlist_id={shows[show_slug].yt_playlist}')
 
         # Use same structure as in the root project for easy copy over
         output_dir = os.path.join(
@@ -817,7 +829,7 @@ def scrape_episodes_from_fireside(shows: Dict[str,ShowDetails] , executor):
 
             futures.append(executor.submit(
                 create_episode, api_episode, show_config,
-                show_slug, output_dir
+                show_slug, output_dir, yt_feeds
             ))
 
     # Drain to get exceptions. This is important in order to collect all the
