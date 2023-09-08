@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic.dataclasses import dataclass as py_dataclass
 from pydantic import HttpUrl
 
@@ -10,6 +10,7 @@ class ShowDetails:
     jb_url: HttpUrl
     acronym: str
     name: str
+    yt_playlist: Optional[str]=None
 
 @py_dataclass
 class ConfigData:
