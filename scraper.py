@@ -198,7 +198,8 @@ def create_episode(api_episode: FsShowItem,
         if yt_feeds[show_slug]:
             yt_soup = BeautifulSoup(yt_feeds[show_slug].content, 'xml')
             for entry in yt_soup.find_all('entry'):
-                if f'{show_config.fireside_url.replace("www.","")}/{episode_number}' in entry.find('media:description').text:
+                # if f'{show_config.fireside_url.replace("www.","")}/{episode_number}' in entry.find('media:description').text
+                if str(episode_number) in entry.find('media:title').text:
                     logger.success(f"Found YT ID ({entry.find('id').text.split(':')[-1]}) for episode {episode_number}")
                     jb_ep_data.youtube = f"https://youtu.be/{entry.find('id').text.split(':')[-1]}"
 
