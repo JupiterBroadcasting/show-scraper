@@ -152,6 +152,9 @@ def create_episode(api_episode: FsShowItem,
             api_soup, page_soup, show_config.acronym, episode_number)
 
         links_list = get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")
+        # Remove title attr from anchors, they are not used in Markdown and cause formatting issues
+        for link in links_list.find_all('a'):
+            del link['title']
         links = html2text(str(links_list)) if links_list else None
 
         tags = []
