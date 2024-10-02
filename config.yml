@@ -5,13 +5,12 @@ shows:
     jb_url: https://www.jupiterbroadcasting.com/show/self-hosted
     acronym: SSH
     name: Self-Hosted
-  # Temp disabled
-  # coder-radio:
-  #   fireside_url: https://coder.show
-  #   fireside_slug: coderradio
-  #   jb_url: https://www.jupiterbroadcasting.com/show/coderradio
-  #   acronym: CR
-  #   name: Coder Radio
+  coder-radio:
+    fireside_url: https://coder.show
+    fireside_slug: coderradio
+    jb_url: https://www.jupiterbroadcasting.com/show/coderradio
+    acronym: CR
+    name: Coder Radio
   linux-action-news:
     fireside_url: https://linuxactionnews.com
     fireside_slug: linuxactionnews
