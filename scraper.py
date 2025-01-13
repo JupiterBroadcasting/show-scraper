@@ -138,7 +138,8 @@ def create_episode(api_episode: FsShowItem,
 
         api_soup = BeautifulSoup(api_episode.content_html, "html.parser")
         page_soup = BeautifulSoup(requests.get(
-            api_episode.url).content, "html.parser")
+            # Accept header required to avoid 404
+            api_episode.url, headers={"Accept": "text/html"}).content, "html.parser")
 
         blurb = api_episode.summary
         if not blurb:
@@ -461,7 +462,8 @@ def jb_get_ep_page_content(page_url: HttpUrl, ep_data: Jb_Episode_Record, show: 
     """
     returns a tuple with the page's content, Jbd_Episode_Record, show slug, and episode number
     """
-    resp = requests.get(page_url)
+    # Accept header required to avoid 404
+    resp = requests.get(page_url, headers={"Accept": "text/html"})
     return resp, ep_data, show, ep
 
 def jb_populate_direct_links_for_episode(ep_page_content: requests.Response, ep_data: Jb_Episode_Record, show: str, ep: int) -> None:
