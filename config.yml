@@ -5,25 +5,12 @@ shows:
     jb_url: https://www.jupiterbroadcasting.com/show/self-hosted
     acronym: SSH
     name: Self-Hosted
-  coder-radio:
-    fireside_url: https://coder.show
-    fireside_slug: coderradio
-    jb_url: https://www.jupiterbroadcasting.com/show/coderradio
-    acronym: CR
-    name: Coder Radio
   linux-action-news:
     fireside_url: https://linuxactionnews.com
     fireside_slug: linuxactionnews
     jb_url: https://www.jupiterbroadcasting.com/show/linux-action-news
     acronym: LAN
     name: Linux Action News
-  # Migrated to Scraper V2
-  # linux-unplugged:
-  #   fireside_url: https://linuxunplugged.com
-  #   fireside_slug: linuxunplugged
-  #   jb_url: https://www.jupiterbroadcasting.com/show/linuxun
-  #   acronym: LUP
-  #   name: LINUX Unplugged
   jupiter-extras:
     fireside_url: https://extras.show
     fireside_slug: extras
@@ -36,6 +23,21 @@ shows:
     jb_url: https://www.jupiterbroadcasting.com/show/office
     acronym: OH
     name: Office Hours
+  # Migrated to Scraper V2
+  # linux-unplugged:
+  #   fireside_url: https://linuxunplugged.com
+  #   fireside_slug: linuxunplugged
+  #   jb_url: https://www.jupiterbroadcasting.com/show/linuxun
+  #   acronym: LUP
+  #   name: LINUX Unplugged
+
+  # Archived 2025/02/05
+  # coder-radio:
+  #   fireside_url: https://coder.show
+  #   fireside_slug: coderradio
+  #   jb_url: https://www.jupiterbroadcasting.com/show/coderradio
+  #   acronym: CR
+  #   name: Coder Radio
 # Map usernames of hosts/guests as they appear in Fireside to how we want to
 # save them in the new website. This also helps to avoid duplicates
 usernames_map:
