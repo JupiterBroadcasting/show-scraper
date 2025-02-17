@@ -59,6 +59,8 @@ usernames_map:
   stuartlangridge: stuart-langridge
   cat: catherine-kretzschmar
   jlaban: jeromelaban
+  producer-jeff: jeff
+  zmitchell: zach-mitchell
 
 # List of any data filenames (sponsors or people) which shouldn't be
 # overridden when scraping latest shows. Any file that was manually edited should
