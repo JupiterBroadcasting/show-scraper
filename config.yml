@@ -37,6 +37,13 @@ shows:
   #   fireside_slug: coderradio
   #   jb_url: https://www.jupiterbroadcasting.com/show/coderradio
   #   acronym: CR
+@nicoan profile
+nicoan/kindly-rss-reader released
+20 minutes ago
+v0.4.1
+What's Changed
+
+
   #   name: Coder Radio
 # Map usernames of hosts/guests as they appear in Fireside to how we want to
 # save them in the new website. This also helps to avoid duplicates
@@ -80,3 +87,4 @@ data_dont_override:
   - joeres.md
   - joe.md
   - jeff.md
+  - drew-devore.md
