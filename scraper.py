@@ -9,6 +9,7 @@ import re
 from typing import Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError
 from urllib.parse import urlparse
+from html import escape
 
 from html2text import html2text
 from pydantic import HttpUrl, PositiveInt
@@ -153,6 +154,8 @@ def create_episode(api_episode: FsShowItem,
             api_soup, page_soup, show_config.acronym, episode_number)
 
         links_list = get_list(api_soup, "Links:") or get_list(api_soup, "Episode Links:")
+        for link in links_list.find_all('a'):
+            link['title'] = escape(link['title'])
         links = html2text(str(links_list)) if links_list else None
 
         tags = []
